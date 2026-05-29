@@ -1,0 +1,6 @@
+{
+  "name": "Aplikasi Belajar AI",
+  "description": "Aplikasi belajar mandiri berbasis AI dengan laporan eksplorasi foto, pemeriksaan dokumen tugas otomatis, latihan esai harian, dan ringkasan ulasan mingguan setiap hari Sabtu.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
