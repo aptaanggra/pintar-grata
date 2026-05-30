@@ -37,6 +37,14 @@ if (process.env.DB_CONN) {
     ssl: {
       rejectUnauthorized: false,
     },
+    max: 10, // Max clients in the pool
+    idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
+    connectionTimeoutMillis: 15000, // Wait 15 seconds for a connection ( Neon compute cold start wake-up)
+  });
+
+  // Handle errors on idle clients to prevent process crashes
+  pool.on('error', (err) => {
+    console.error('[Neon DB] Unexpected error on idle client:', err.message);
   });
 } else {
   console.log('[Local DB] No DB_CONN detected. Using local disk fallback.');

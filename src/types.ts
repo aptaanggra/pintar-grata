@@ -1,7 +1,32 @@
+export interface ScientificIllustration {
+  title: string;
+  svgCode?: string; // Inline SVG to represent chemical formula, biology sketch, etc.
+  imageUrl?: string; // Fallback or direct photo URL
+  caption: string;
+}
+
+export interface JournalReference {
+  title: string;
+  author: string;
+  year: string;
+  journalName: string;
+  url: string;
+  snippet: string;
+}
+
+export interface ChatAttachment {
+  filename: string;
+  type: string;
+  data: string; // Base64 data definition
+}
+
 export interface ChatMessage {
   sender: 'user' | 'ai';
   message: string;
   timestamp: string;
+  illustrations?: ScientificIllustration[];
+  journals?: JournalReference[];
+  attachment?: ChatAttachment;
 }
 
 export interface ExploreReport {

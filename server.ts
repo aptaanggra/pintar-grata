@@ -16,7 +16,7 @@ const ai = new GoogleGenAI({
 });
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Set up JSON body limits for base64 file uploads
 app.use(express.json({ limit: '50mb' }));
@@ -50,6 +50,43 @@ app.get('/api/explorations', async (req, res) => {
   }
 });
 
+// Schema for Kakak AI's rich responses
+const KakakAiSchema = {
+  type: Type.OBJECT,
+  properties: {
+    message: { type: Type.STRING },
+    illustrations: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          svgCode: { type: Type.STRING },
+          imageUrl: { type: Type.STRING },
+          caption: { type: Type.STRING }
+        },
+        required: ['title', 'caption']
+      }
+    },
+    journals: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          author: { type: Type.STRING },
+          year: { type: Type.STRING },
+          journalName: { type: Type.STRING },
+          url: { type: Type.STRING },
+          snippet: { type: Type.STRING }
+        },
+        required: ['title', 'author', 'year', 'journalName', 'url', 'snippet']
+      }
+    }
+  },
+  required: ['message', 'illustrations', 'journals']
+};
+
 // 2. Create Exploration Report & start conversation with AI Tutor
 app.post('/api/explorations', async (req, res) => {
   try {
@@ -71,23 +108,62 @@ app.post('/api/explorations', async (req, res) => {
     };
 
     const textPart = {
-      text: `Anda adalah "Kakak AI", seorang mentor belajar pribadi anak-anak yang santun, interaktif, hangat, dan menginspirasi. 
-Fokus Anda adalah memicu kepintaran anak dengan pertanyaan yang mendidik dan fakta unik yang mengejutkan tentang apa yang mereka upload.
+      text: `Anda adalah "Kakak AI", seorang mentor bimbingan sains mandiri yang sangat lugas, profesional, alami (manusiawi), dan mendalam. Gaya komunikasi Anda adalah gaya diskusi ilmiah yang santai tapi fokus antara siswa dan pembimbing native Indonesia yang fasih.
 
-Siswa baru saja mengunggah foto eksplorasi alam/benda mereka sendiri.
+KETENTUAN GAYA BAHASA & STRUKTUR:
+- JANGAN PERNAH menyapa siswa dengan sebutan berulang, berlebihan, atau kekanak-kanakan (DILARANG KERAS menggunakan sapaan klise seperti: "Halo Adik!", "Halo adik cerdas!", "Wah hebat sekali!", "Halo adik pintar yang penuh rasa ingin tahu!").
+- JANGAN gunakan basa-basi atau pujian kosong yang dipaksakan.
+- Mulai tanggapan Anda secara langsung dan organik. Misalkan: "Temuan yang sangat menarik. Mari kita bahas dari sisi sains...", atau langsung menanggapi inti pengamatan murid tersebut secara cerdas.
+- Gunakan bahasa Indonesia semi-formal yang mengalir alami, santun, tetapi solid, lugas, bertenaga, dan tidak berbelit-belit. Hindari gaya tulis kaku atau terkesan dihasilkan oleh mesin penerjemah.
+- Struktur tanggapan (simpan ke key "message"):
+  1. Analisis singkat & tajam dari kacamata ilmiah terhadap foto dan deskripsi siswa.
+  2. Berikan 1 fakta sains unik/mendalam yang relevan dengan benda/fenomena tersebut.
+  3. Ajukan 1 pertanyaan pemantik diskusi lanjutan yang menantang pemikiran kritis mereka secara alami (tidak kaku).
+
+Siswa baru saja mengunggah foto eksplorasi sains/alam mereka sendiri.
 Deskripsi siswa: "${description}"
 
-Analisis foto dan deskripsi mereka. Berikan tanggapan yang hangat dan memuji keaktifan mereka (sekitar 1-2 paragraf saja). 
-Kemudian berikan 1 fakta unik sains/pengetahuan tentang benda tersebut, serta ajukan 1 pertanyaan pemancing rasa ingin tahu agar siswa mau membalas obrolan Anda.
-Jawab dalam Bahasa Indonesia yang ramah, sopan, dan hangat.`,
+PENTING: Di dalam teks kalimat "message", sisipkan notasi rujukan inline berupa indeks angka dalam tanda kurung siku seperti [1] atau [2] pada bagian kalimat/teori/fakta unik yang didukung oleh jurnal di array "journals" (misal: "Gigi roda biologis ini mengunci kaki saat mereka bersiap melompat [1]."). Pastikan angka indeks dimulai dari [1] dan sesuai dengan urutan referensi jurnal di array "journals".
+
+Sertakan juga minimal 1 objek ilustrasi sains bertema ilmiah dalam array "illustrations".
+Setiap ilustrasi membutuhkan:
+- "title": Judul ilustrasi/diagram ilmiah.
+- "svgCode": Hasilkan kode SVG mandiri (xml valid lengkap, menggunakan tag <svg viewBox="0 0 400 300" ...> dan ditutup </svg>). Silakan gambar diagram/ilustrasi berwarna yang responsif dan bertekstur modern terkait topik yang dibahas (misal diagram sel tumbuhan, anatomi serangga, klorofil, siklus air, gaya gravitasi, pembiasan cahaya, dll.) dengan label ilmiah teks di dalam SVG-nya! Pastikan kodenya bersih dan valid.
+- "imageUrl": Gunakan fallback URL picsum atau kosongkan.
+- "caption": Deskripsi singkat di balik diagram/ilustrasi ilmiah tersebut.
+
+Sertakan juga minimal 2 entri jurnal sains atau buku sumber akademis terpercaya dalam array "journals".
+Setiap jurnal membutuhkan:
+- "title": Judul artikel jurnal/makalah/buku.
+- "author": Kelompok peneliti atau penulis utama (misal: "Smith, J. et al." atau "LIPI Indonesia").
+- "year": Tahun rilis/publikasi.
+- "journalName": Nama jurnal terakreditasi/penerbit (misal: "Journal of Plant Biology", "Nature Cell Research", "Jurnal Botani Indonesia", dll.).
+- "url": Tautkan link asli/aktif atau pencarian Google Scholar, misalnya dari jstor.org, nature.com, sciencedirect.com, dll.
+- "snippet": Rangkuman singkat mengenai keterkaitan penelitian tersebut dengan topik temuan siswa.`,
     };
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: { parts: [imagePart, textPart] },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: KakakAiSchema,
+      }
     });
 
-    const aiMessage = response.text || 'Wah hebat sekali eksplorasimu! Mari kita diskusikan lebih jauh.';
+    let result = {
+      message: 'Wah hebat sekali eksplorasimu! Mari kita diskusikan lebih jauh.',
+      illustrations: [] as any[],
+      journals: [] as any[]
+    };
+
+    if (response.text) {
+      try {
+        result = JSON.parse(response.text.trim());
+      } catch (parseErr) {
+        console.error('Error parsing JSON response in creations:', parseErr);
+      }
+    }
 
     const initialChat: ChatMessage[] = [
       {
@@ -97,8 +173,10 @@ Jawab dalam Bahasa Indonesia yang ramah, sopan, dan hangat.`,
       },
       {
         sender: 'ai',
-        message: aiMessage,
+        message: result.message,
         timestamp: new Date().toISOString(),
+        illustrations: result.illustrations,
+        journals: result.journals,
       },
     ];
 
@@ -122,7 +200,7 @@ Jawab dalam Bahasa Indonesia yang ramah, sopan, dan hangat.`,
 app.post('/api/explorations/:id/chat', async (req, res) => {
   try {
     const { id } = req.params;
-    const { message } = req.body;
+    const { message, attachment } = req.body;
     if (!message) {
       return res.status(400).json({ error: 'Message is required.' });
     }
@@ -137,40 +215,97 @@ app.post('/api/explorations/:id/chat', async (req, res) => {
       sender: 'user',
       message: message,
       timestamp: new Date().toISOString(),
+      ...(attachment ? { attachment } : {}),
     };
     report.chatHistory.push(userMsg);
 
-    // Context format for Chat
+    // Context format for Chat (exclude full attachment base64 to keep prompt concise, but note attachment name)
     const chatHistoryContext = report.chatHistory
-      .map((c) => `${c.sender === 'user' ? 'Siswa' : 'Kakak AI'}: ${c.message}`)
+      .map((c) => `${c.sender === 'user' ? 'Siswa' : 'Kakak AI'}: ${c.message}${c.attachment ? ` [Mengunggah berkas: ${c.attachment.filename}]` : ''}`)
       .join('\n');
 
+    const parts: any[] = [];
+
+    // 1) Primary exploration photo
     const filePart = parseBase64(report.photoData);
-    const imagePart = {
+    parts.push({
       inlineData: {
         mimeType: filePart.mimeType,
         data: filePart.data,
       },
-    };
+    });
 
-    const promptText = `Anda adalah "Kakak AI", mentor belajar mandiri yang hangat, seru, dan pintar.
-Berikut adalah foto eksplorasi yang siswa unggah, serta deskripsinya: "${report.description}".
+    // 2) Additional attached photo or document for this conversation turn
+    if (attachment && attachment.data) {
+      try {
+        const attachPart = parseBase64(attachment.data);
+        parts.push({
+          inlineData: {
+            mimeType: attachPart.mimeType,
+            data: attachPart.data,
+          },
+        });
+      } catch (attachErr) {
+        console.error("Error parsing base64 attachment in chat продолжение:", attachErr);
+      }
+    }
 
-Berikut adalah riwayat obrolan Anda sebelumnya dengan siswa:
+    const promptText = `Anda adalah "Kakak AI", seorang mentor bimbingan sains mandiri yang sangat lugas, profesional, alami (manusiawi), dan mendalam. Gaya komunikasi Anda adalah gaya diskusi ilmiah yang santai tapi fokus antara siswa dan pembimbing native Indonesia yang fasih.
+
+Siswa baru saja mengunggah foto eksplorasi awal, dengan deskripsi: "${report.description}".
+Siswa saat ini mengajukan sebuah pertanyaan lanjutan/tanggapan: "${message}"${attachment ? ` sambil melampirkan berkas penunjang baru: "${attachment.filename}" dengan tipe dokumen "${attachment.type}".` : ''}
+
+Berikut adalah seluruh riwayat obrolan Anda sebelumnya dengan siswa:
 ${chatHistoryContext}
 
-Balas pesan siswa tersebut dengan ramah, komunikatif, dan mendidik. Bantu mereka memahami konsep sains/sejarah/geografi dari objek eksplorasi mereka, dukung pemikiran kritis, dan akhiri dengan respon yang menyenangkan.`;
+KETENTUAN GAYA BAHASA & STRUKTUR:
+- JANGAN PERNAH menyapa siswa dengan sebutan berulang, berlebihan, atau kekanak-kanakan (DILARANG KERAS menggunakan sapaan klise seperti: "Halo Adik!", "Halo adik cerdas!", "Wah hebat sekali!", "Halo adik pintar yang penuh rasa ingin tahu!").
+- JANGAN gunakan basa-basi atau pujian kosong yang dipaksakan. Sapaan di awal chat lanjutan harus sangat minim dan natural atau langsung menjawab poin pertanyaan mereka.
+- Jawab pertanyaan siswa dengan ramah, komunikatif, berbobot, lugas, dan berbasis bukti sains. Buat alur pembicaraan yang mengalir seperti diskusi nyata dua arah.
+- Gunakan bahasa Indonesia semi-formal yang mengalir alami, santun, tetapi solid, lugas, bertenaga, dan tidak berbelit-belit. Hindari gaya tulis kaku atau terkesan dihasilkan oleh mesin penerjemah.
+
+TUGAS ANDA:
+1. Hubungkan teori sains mendalam dengan deskripsi siswa dan lampiran berkas barunya (jika ada). Jelaskan prinsip botani (tumbuhan), anatomi, zoologi (hewan), fisika rill, sains lingkungan, atau ekosistem alam terkait secara terstruktur. Simpan jawaban responsi Anda di field "message" dalam JSON.
+   PENTING: Di dalam teks field "message", Anda WAJIB menyisipkan notasi rujukan inline berupa indeks angka dalam tanda kurung siku seperti [1] atau [2] pada bagian kalimat/teori/fakta sains yang Anda jabarkan yang bersumber dari jurnal di array "journals" (misal: "Mekanisme pengunci mekanis ini menghindarkan selip ketika melompat [1]."). Angka ini harus merujuk ke urutan jurnal di array "journals" (dimulai dari 1).
+2. BUAT minimal 1 diagram ilustrasi sains mandiri yang interaktif dan informatif ke dalam array "illustrations".
+   - "title": Judul diagram/skema sains.
+   - "svgCode": Hasilkan kode SVG mandiri (xml valid lengkap, ditutup </svg>) yang representatif menggambarkan konsep ilmiah diskusi terbaru ini (misal rumus struktur molekul, rangkaian listrik, persilangan genetika, siklus ekologi, dll.) dengan teks label jelas di dalamnya! Jadikan desainnya modern dan penuh warna.
+   - "caption": Penjelasan ilmiah di balik diagram SVG tersebut.
+3. Sertakan minimal 2 rujukan jurnal ilmiah akademis/buku sumber rill yang kredibel (seperti Nature, ScienceDirect, LIPI, PubMed, dll.) ke dalam array "journals" untuk menyokong penjelasan sains Anda. Lengkapi field "title", "author", "year", "journalName", "url" (link scholar/aktif), dan "snippet" (rangkuman keterkaitan pustaka).
+
+Kembalikan jawaban penuh dalam JSON terstruktur sesuai skema.`;
+
+    parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
-      contents: { parts: [imagePart, { text: promptText }] },
+      contents: { parts },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: KakakAiSchema,
+      }
     });
 
-    const aiResponseText = response.text || 'Hebat sekali! Terus bereksplorasi ya!';
+    let result = {
+      message: 'Hebat sekali! Terus bereksplorasi ya!',
+      illustrations: [] as any[],
+      journals: [] as any[]
+    };
+
+    if (response.text) {
+      try {
+        result = JSON.parse(response.text.trim());
+      } catch (parseErr) {
+        console.error('Error parsing JSON response in chat continuation:', parseErr);
+      }
+    }
+
     const aiMsg: ChatMessage = {
       sender: 'ai',
-      message: aiResponseText,
+      message: result.message,
       timestamp: new Date().toISOString(),
+      illustrations: result.illustrations,
+      journals: result.journals,
     };
     report.chatHistory.push(aiMsg);
 
