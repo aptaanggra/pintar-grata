@@ -406,11 +406,31 @@ export default function App() {
         setEssayQuestion(data);
       } else {
         console.error("Error today question response:", data);
-        setEssayQuestion(null);
+        const todayStr = new Date().toISOString().split('T')[0];
+        setEssayQuestion({
+          id: todayStr,
+          date: todayStr,
+          subject: 'Geografi dan Budaya',
+          question: 'Bagaimana kondisi geografis negara kepulauan Indonesia memengaruhi mata pencaharian penduduk, keragaman budaya, dan integrasi sosial antar suku bangsa?',
+          userAnswer: null,
+          aiFeedback: null,
+          score: null,
+          answeredAt: null
+        });
       }
     } catch (err) {
       console.error("Error today quiz:", err);
-      setEssayQuestion(null);
+      const todayStr = new Date().toISOString().split('T')[0];
+      setEssayQuestion({
+        id: todayStr,
+        date: todayStr,
+        subject: 'Geografi dan Budaya',
+        question: 'Bagaimana kondisi geografis negara kepulauan Indonesia memengaruhi mata pencaharian penduduk, keragaman budaya, dan integrasi sosial antar suku bangsa?',
+        userAnswer: null,
+        aiFeedback: null,
+        score: null,
+        answeredAt: null
+      });
     } finally {
       setLoading(false);
     }

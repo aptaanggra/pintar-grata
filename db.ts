@@ -426,77 +426,126 @@ export const db = {
   // Daily Questions
   async getDailyQuestions(userId: string = 'guest'): Promise<DailyQuestion[]> {
     if (pool) {
-      const res = await pool.query('SELECT * FROM daily_questions WHERE user_id = $1', [userId]);
-      return res.rows.map((row) => ({
-        id: row.id,
-        date: row.date,
-        subject: row.subject,
-        question: row.question,
-        userAnswer: row.user_answer,
-        aiFeedback: row.ai_feedback,
-        score: row.score,
-        answeredAt: row.answered_at instanceof Date ? row.answered_at.toISOString() : row.answered_at
-      }));
+      try {
+        const res = await pool.query('SELECT * FROM daily_questions WHERE user_id = $1', [userId]);
+        return res.rows.map((row) => ({
+          id: row.id,
+          date: row.date,
+          subject: row.subject,
+          question: row.question,
+          userAnswer: row.user_answer,
+          aiFeedback: row.ai_feedback,
+          score: row.score,
+          answeredAt: row.answered_at instanceof Date ? row.answered_at.toISOString() : row.answered_at
+        }));
+      } catch (err: any) {
+        console.error('[DB Error] getDailyQuestions PG query failed:', err.message);
+      }
     }
-    const questions = readFile<any[]>(FILES.daily_questions);
-    return questions.filter((q) => q.userId === userId || (!q.userId && userId === 'guest'));
+    try {
+      const questions = readFile<any[]>(FILES.daily_questions);
+      return questions.filter((q) => q.userId === userId || (!q.userId && userId === 'guest'));
+    } catch (err) {
+      return [];
+    }
   },
 
   async getDailyQuestionByDate(dateStr: string, userId: string = 'guest'): Promise<DailyQuestion | null> {
     if (pool) {
-      const res = await pool.query('SELECT * FROM daily_questions WHERE date = $1 AND user_id = $2', [dateStr, userId]);
-      if (res.rows.length === 0) return null;
-      const row = res.rows[0];
-      return {
-        id: row.id,
-        date: row.date,
-        subject: row.subject,
-        question: row.question,
-        userAnswer: row.user_answer,
-        aiFeedback: row.ai_feedback,
-        score: row.score,
-        answeredAt: row.answered_at instanceof Date ? row.answered_at.toISOString() : row.answered_at
-      };
+      try {
+        const res = await pool.query('SELECT * FROM daily_questions WHERE date = $1 AND user_id = $2', [dateStr, userId]);
+        if (res.rows.length > 0) {
+          const row = res.rows[0];
+          return {
+            id: row.id,
+            date: row.date,
+            subject: row.subject,
+            question: row.question,
+            userAnswer: row.user_answer,
+            aiFeedback: row.ai_feedback,
+            score: row.score,
+            answeredAt: row.answered_at instanceof Date ? row.answered_at.toISOString() : row.answered_at
+          };
+        }
+      } catch (err: any) {
+        console.error('[DB Error] getDailyQuestionByDate PG query failed:', err.message);
+      }
     }
-    const questions = readFile<any[]>(FILES.daily_questions);
-    return questions.find((q) => q.date === dateStr && (q.userId === userId || (!q.userId && userId === 'guest'))) || null;
+    try {
+      const questions = readFile<any[]>(FILES.daily_questions);
+      const found = questions.find((q) => q.date === dateStr && (q.userId === userId || (!q.userId && userId === 'guest')));
+      if (found) return found;
+      // If user specific not found in json, try guest or match date
+      return questions.find((q) => q.date === dateStr) || null;
+    } catch (err) {
+      return null;
+    }
   },
 
   async saveDailyQuestion(question: DailyQuestion, userId: string = 'guest'): Promise<DailyQuestion> {
     if (pool) {
-      await pool.query(`
-        INSERT INTO daily_questions (id, date, subject, question, user_answer, ai_feedback, score, answered_at, user_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (date, user_id) DO UPDATE SET
-          id = EXCLUDED.id,
-          subject = EXCLUDED.subject,
-          question = EXCLUDED.question,
-          user_answer = EXCLUDED.user_answer,
-          ai_feedback = EXCLUDED.ai_feedback,
-          score = EXCLUDED.score,
-          answered_at = EXCLUDED.answered_at
-      `, [
-        question.id,
-        question.date,
-        question.subject,
-        question.question,
-        question.userAnswer,
-        question.aiFeedback,
-        question.score,
-        question.answeredAt,
-        userId
-      ]);
-      return question;
+      try {
+        await pool.query(`
+          INSERT INTO daily_questions (id, date, subject, question, user_answer, ai_feedback, score, answered_at, user_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (date, user_id) DO UPDATE SET
+            id = EXCLUDED.id,
+            subject = EXCLUDED.subject,
+            question = EXCLUDED.question,
+            user_answer = EXCLUDED.user_answer,
+            ai_feedback = EXCLUDED.ai_feedback,
+            score = EXCLUDED.score,
+            answered_at = EXCLUDED.answered_at
+        `, [
+          question.id,
+          question.date,
+          question.subject,
+          question.question,
+          question.userAnswer,
+          question.aiFeedback,
+          question.score,
+          question.answeredAt,
+          userId
+        ]);
+        return question;
+      } catch (err: any) {
+        console.warn('[DB Warning] ON CONFLICT (date, user_id) failed, running DELETE+INSERT fallback:', err.message);
+        try {
+          await pool.query('DELETE FROM daily_questions WHERE date = $1 AND user_id = $2', [question.date, userId]);
+          await pool.query(`
+            INSERT INTO daily_questions (id, date, subject, question, user_answer, ai_feedback, score, answered_at, user_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          `, [
+            question.id,
+            question.date,
+            question.subject,
+            question.question,
+            question.userAnswer,
+            question.aiFeedback,
+            question.score,
+            question.answeredAt,
+            userId
+          ]);
+          return question;
+        } catch (fallbackErr: any) {
+          console.error('[DB Error] saveDailyQuestion PG fallback failed:', fallbackErr.message);
+        }
+      }
     }
-    const questions = readFile<any[]>(FILES.daily_questions);
-    const index = questions.findIndex((q) => q.date === question.date && (q.userId === userId || (!q.userId && userId === 'guest')));
-    const qWithUser = { ...question, userId };
-    if (index >= 0) {
-      questions[index] = qWithUser;
-    } else {
-      questions.push(qWithUser);
+    // Also save to local JSON file for redundant reliability
+    try {
+      const questions = readFile<any[]>(FILES.daily_questions);
+      const index = questions.findIndex((q) => q.date === question.date && (q.userId === userId || (!q.userId && userId === 'guest')));
+      const qWithUser = { ...question, userId };
+      if (index >= 0) {
+        questions[index] = qWithUser;
+      } else {
+        questions.push(qWithUser);
+      }
+      writeFile(FILES.daily_questions, questions);
+    } catch (jsonErr) {
+      console.error('[JSON Error] Failed writing daily question to disk:', jsonErr);
     }
-    writeFile(FILES.daily_questions, questions);
     return question;
   },
 
