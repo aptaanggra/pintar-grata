@@ -54,7 +54,11 @@ export const checkHasDocsScope = (): boolean => {
 };
 
 export const logout = async () => {
-  await auth.signOut();
+  try {
+    await auth.signOut();
+  } catch (err) {
+    console.error('Sign out error:', err);
+  }
   cachedAccessToken = null;
   hasDocsScope = false;
 };

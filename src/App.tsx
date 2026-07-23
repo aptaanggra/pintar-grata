@@ -25,7 +25,8 @@ import {
   Image,
   X,
   Copy,
-  Check
+  Check,
+  LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExploreReport, Assignment, DailyQuestion, WeeklyReview } from './types';
@@ -120,6 +121,7 @@ export default function App() {
   const [exportSuccessMessage, setExportSuccessMessage] = useState<{ id: string; url: string; title: string } | null>(null);
   const [exportErrorMessage, setExportErrorMessage] = useState<{ id: string; msg: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
 
   const isInIframe = typeof window !== 'undefined' ? window.self !== window.top : false;
 
@@ -162,16 +164,16 @@ export default function App() {
   };
 
   const handleGoogleLogout = async () => {
-    const confirmed = window.confirm('Apakah Anda yakin ingin memutuskan koneksi Google Docs?');
-    if (!confirmed) return;
     try {
       await googleLogout();
+    } catch (err) {
+      console.error('Logout gagal:', err);
+    } finally {
       setGoogleUser(null);
       setGoogleToken(null);
       setExportSuccessMessage(null);
       setExportErrorMessage(null);
-    } catch (err) {
-      console.error('Logout gagal:', err);
+      setShowProfileMenu(false);
     }
   };
 
@@ -856,11 +858,34 @@ export default function App() {
           </div>
           <span className="text-sm font-bold font-display tracking-tight text-slate-800">PintarAI</span>
         </div>
-        <div className="flex items-center gap-2 bg-[#FFF0F3] border border-pink-100 px-3 py-1 rounded-full">
-          <Trophy className="w-3.5 h-3.5 text-rose-500" />
-          <span className="text-xs font-bold font-display text-rose-600">
-            {explorations.length * 15 + assignments.length * 20 + (essayQuestion?.userAnswer ? 10 : 0)} XP
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 bg-[#FFF0F3] border border-pink-100 px-2.5 py-1 rounded-full">
+            <Trophy className="w-3.5 h-3.5 text-rose-500" />
+            <span className="text-xs font-bold font-display text-rose-600">
+              {explorations.length * 15 + assignments.length * 20 + (essayQuestion?.userAnswer ? 10 : 0)} XP
+            </span>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="focus:outline-none cursor-pointer border-0 bg-transparent block"
+              title="Menu Profil & Keluar"
+            >
+              {googleUser ? (
+                <img 
+                  src={googleUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=250'} 
+                  alt="Avatar" 
+                  className="w-8 h-8 rounded-full object-cover border border-indigo-200 shrink-0" 
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-[10px] border border-slate-200">
+                  ST
+                </div>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -925,20 +950,76 @@ export default function App() {
               </button>
 
               {/* User Profil picture custom render */}
-              {googleUser ? (
-                <img 
-                  src={googleUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=250'} 
-                  alt="Avatar" 
-                  className="w-10 h-10 rounded-full object-cover border border-slate-100 shadow-sm shrink-0" 
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#FB7185] to-[#818CF8] p-0.5 shadow-sm">
-                  <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-xs font-black text-slate-800 font-display">
-                    ST
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="focus:outline-none cursor-pointer border-0 bg-transparent block"
+                  title="Menu Profil & Keluar"
+                >
+                  {googleUser ? (
+                    <img 
+                      src={googleUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=250'} 
+                      alt="Avatar" 
+                      className="w-10 h-10 rounded-full object-cover border-2 border-indigo-200 shadow-sm shrink-0 hover:ring-2 hover:ring-indigo-400 transition-all" 
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#FB7185] to-[#818CF8] p-0.5 shadow-sm hover:opacity-90 transition-all">
+                      <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-xs font-black text-slate-800 font-display">
+                        ST
+                      </div>
+                    </div>
+                  )}
+                </button>
+
+                {/* Profile Dropdown Popover */}
+                {showProfileMenu && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-150 p-4 z-50">
+                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                      {googleUser ? (
+                        <img 
+                          src={googleUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=250'} 
+                          alt="Avatar" 
+                          className="w-10 h-10 rounded-full object-cover border border-slate-150" 
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-xs font-sans">
+                          ST
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-800 font-sans truncate">
+                          {googleUser ? (googleUser.displayName || 'Pengguna Google') : 'Siswa Tamu'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-sans truncate">
+                          {googleUser ? googleUser.email : 'Belum terhubung ke Google'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 space-y-2">
+                      {googleUser ? (
+                        <button
+                          onClick={handleGoogleLogout}
+                          className="w-full flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Keluar / Putus Akun</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => { setShowProfileMenu(false); handleGoogleLogin(); }}
+                          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0 shadow-xs"
+                        >
+                          <Sparkle className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                          <span>Hubungkan Google Docs</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}
