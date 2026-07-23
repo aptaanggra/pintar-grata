@@ -185,7 +185,8 @@ export async function initDb() {
         photo_data TEXT NOT NULL,
         description TEXT NOT NULL,
         chat_history JSONB NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        user_id TEXT DEFAULT 'guest'
       );
     `);
 
@@ -197,35 +198,62 @@ export async function initDb() {
         file_data TEXT NOT NULL,
         score INTEGER,
         review TEXT,
-        uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        user_id TEXT DEFAULT 'guest'
       );
     `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS daily_questions (
-        id TEXT PRIMARY KEY,
-        date TEXT NOT NULL UNIQUE,
+        id TEXT,
+        date TEXT NOT NULL,
         subject TEXT NOT NULL,
         question TEXT NOT NULL,
         user_answer TEXT,
         ai_feedback TEXT,
         score INTEGER,
-        answered_at TIMESTAMP WITH TIME ZONE
+        answered_at TIMESTAMP WITH TIME ZONE,
+        user_id TEXT DEFAULT 'guest',
+        PRIMARY KEY (date, user_id)
       );
     `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS weekly_reviews (
-        id TEXT PRIMARY KEY,
+        id TEXT,
         week_range TEXT NOT NULL,
         released_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         summary TEXT NOT NULL,
         achievements JSONB NOT NULL,
-        statistics JSONB NOT NULL
+        statistics JSONB NOT NULL,
+        user_id TEXT DEFAULT 'guest',
+        PRIMARY KEY (id, user_id)
       );
     `);
 
-    console.log('[Neon DB] PostgreSQL schema is ready.');
+    // Schema upgrades for existing production DBs
+    console.log('[Neon DB] Running automatic schema upgrades for existing tables...');
+    await pool.query(`ALTER TABLE explorations ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
+    await pool.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
+    await pool.query(`ALTER TABLE daily_questions ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
+    await pool.query(`ALTER TABLE weekly_reviews ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
+
+    try {
+      await pool.query(`ALTER TABLE daily_questions DROP CONSTRAINT IF EXISTS daily_questions_pkey;`);
+      await pool.query(`ALTER TABLE daily_questions DROP CONSTRAINT IF EXISTS daily_questions_date_key;`);
+      await pool.query(`ALTER TABLE daily_questions ADD CONSTRAINT daily_questions_pkey PRIMARY KEY (date, user_id);`);
+    } catch (err) {
+      console.log('[Neon DB Schema Update] Constraint update for daily_questions already set or skipped:', err);
+    }
+
+    try {
+      await pool.query(`ALTER TABLE weekly_reviews DROP CONSTRAINT IF EXISTS weekly_reviews_pkey;`);
+      await pool.query(`ALTER TABLE weekly_reviews ADD CONSTRAINT weekly_reviews_pkey PRIMARY KEY (id, user_id);`);
+    } catch (err) {
+      console.log('[Neon DB Schema Update] Constraint update for weekly_reviews already set or skipped:', err);
+    }
+
+    console.log('[Neon DB] PostgreSQL schema is ready and multi-tenant enabled.');
 
     // Seed PG database if empty
     const expCountRes = await pool.query('SELECT COUNT(*) FROM explorations');
@@ -236,40 +264,40 @@ export async function initDb() {
     if (expCount === 0 && qCount === 0) {
       console.log('[Neon DB] Database is empty. Migrating local seed data to Neon DB...');
       
-      const localExplorations = readFile<ExploreReport[]>(FILES.explorations);
+      const localExplorations = readFile<any[]>(FILES.explorations);
       for (const exp of localExplorations) {
         await pool.query(`
-          INSERT INTO explorations (id, photo_data, description, chat_history, created_at)
-          VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT (id) DO NOTHING
-        `, [exp.id, exp.photoData, exp.description, JSON.stringify(exp.chatHistory), exp.createdAt]);
-      }
-
-      const localAssignments = readFile<Assignment[]>(FILES.assignments);
-      for (const asg of localAssignments) {
-        await pool.query(`
-          INSERT INTO assignments (id, filename, file_type, file_data, score, review, uploaded_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-          ON CONFLICT (id) DO NOTHING
-        `, [asg.id, asg.filename, asg.fileType, asg.fileData, asg.score, asg.review, asg.uploadedAt]);
-      }
-
-      const localQuestions = readFile<DailyQuestion[]>(FILES.daily_questions);
-      for (const q of localQuestions) {
-        await pool.query(`
-          INSERT INTO daily_questions (id, date, subject, question, user_answer, ai_feedback, score, answered_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          ON CONFLICT (date) DO NOTHING
-        `, [q.id, q.date, q.subject, q.question, q.userAnswer, q.aiFeedback, q.score, q.answeredAt]);
-      }
-
-      const localReviews = readFile<WeeklyReview[]>(FILES.weekly_reviews);
-      for (const r of localReviews) {
-        await pool.query(`
-          INSERT INTO weekly_reviews (id, week_range, released_at, summary, achievements, statistics)
+          INSERT INTO explorations (id, photo_data, description, chat_history, created_at, user_id)
           VALUES ($1, $2, $3, $4, $5, $6)
           ON CONFLICT (id) DO NOTHING
-        `, [r.id, r.weekRange, r.releasedAt, r.summary, JSON.stringify(r.achievements), JSON.stringify(r.statistics)]);
+        `, [exp.id, exp.photoData, exp.description, JSON.stringify(exp.chatHistory), exp.createdAt, exp.userId || 'guest']);
+      }
+
+      const localAssignments = readFile<any[]>(FILES.assignments);
+      for (const asg of localAssignments) {
+        await pool.query(`
+          INSERT INTO assignments (id, filename, file_type, file_data, score, review, uploaded_at, user_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT (id) DO NOTHING
+        `, [asg.id, asg.filename, asg.fileType, asg.fileData, asg.score, asg.review, asg.uploadedAt, asg.userId || 'guest']);
+      }
+
+      const localQuestions = readFile<any[]>(FILES.daily_questions);
+      for (const q of localQuestions) {
+        await pool.query(`
+          INSERT INTO daily_questions (id, date, subject, question, user_answer, ai_feedback, score, answered_at, user_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (date, user_id) DO NOTHING
+        `, [q.id, q.date, q.subject, q.question, q.userAnswer, q.aiFeedback, q.score, q.answeredAt, q.userId || 'guest']);
+      }
+
+      const localReviews = readFile<any[]>(FILES.weekly_reviews);
+      for (const r of localReviews) {
+        await pool.query(`
+          INSERT INTO weekly_reviews (id, week_range, released_at, summary, achievements, statistics, user_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (id, user_id) DO NOTHING
+        `, [r.id, r.weekRange, r.releasedAt, r.summary, JSON.stringify(r.achievements), JSON.stringify(r.statistics), r.userId || 'guest']);
       }
 
       console.log('[Neon DB] Local seeds migrated to PG successfully.');
@@ -292,9 +320,9 @@ function readFile<T>(filePath: string): T {
 
 export const db = {
   // Explorations
-  async getExploreReports(): Promise<ExploreReport[]> {
+  async getExploreReports(userId: string = 'guest'): Promise<ExploreReport[]> {
     if (pool) {
-      const res = await pool.query('SELECT * FROM explorations');
+      const res = await pool.query('SELECT * FROM explorations WHERE user_id = $1', [userId]);
       return res.rows.map((row) => ({
         id: row.id,
         photoData: row.photo_data,
@@ -303,43 +331,47 @@ export const db = {
         chatHistory: typeof row.chat_history === 'string' ? JSON.parse(row.chat_history) : row.chat_history
       }));
     }
-    return readFile<ExploreReport[]>(FILES.explorations);
+    const reports = readFile<any[]>(FILES.explorations);
+    return reports.filter((r) => r.userId === userId || (!r.userId && userId === 'guest'));
   },
   
-  async saveExploreReport(report: ExploreReport): Promise<ExploreReport> {
+  async saveExploreReport(report: ExploreReport, userId: string = 'guest'): Promise<ExploreReport> {
     if (pool) {
       await pool.query(`
-        INSERT INTO explorations (id, photo_data, description, chat_history, created_at)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO explorations (id, photo_data, description, chat_history, created_at, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (id) DO UPDATE SET
           photo_data = EXCLUDED.photo_data,
           description = EXCLUDED.description,
           chat_history = EXCLUDED.chat_history,
-          created_at = EXCLUDED.created_at
+          created_at = EXCLUDED.created_at,
+          user_id = EXCLUDED.user_id
       `, [
         report.id,
         report.photoData,
         report.description,
         JSON.stringify(report.chatHistory),
-        report.createdAt
+        report.createdAt,
+        userId
       ]);
       return report;
     }
-    const reports = readFile<ExploreReport[]>(FILES.explorations);
+    const reports = readFile<any[]>(FILES.explorations);
     const index = reports.findIndex((r) => r.id === report.id);
+    const reportWithUser = { ...report, userId };
     if (index >= 0) {
-      reports[index] = report;
+      reports[index] = reportWithUser;
     } else {
-      reports.push(report);
+      reports.push(reportWithUser);
     }
     writeFile(FILES.explorations, reports);
     return report;
   },
 
   // Assignments
-  async getAssignments(): Promise<Assignment[]> {
+  async getAssignments(userId: string = 'guest'): Promise<Assignment[]> {
     if (pool) {
-      const res = await pool.query('SELECT * FROM assignments');
+      const res = await pool.query('SELECT * FROM assignments WHERE user_id = $1', [userId]);
       return res.rows.map((row) => ({
         id: row.id,
         filename: row.filename,
@@ -350,21 +382,23 @@ export const db = {
         uploadedAt: row.uploaded_at instanceof Date ? row.uploaded_at.toISOString() : row.uploaded_at
       }));
     }
-    return readFile<Assignment[]>(FILES.assignments);
+    const assignments = readFile<any[]>(FILES.assignments);
+    return assignments.filter((a) => a.userId === userId || (!a.userId && userId === 'guest'));
   },
 
-  async saveAssignment(assignment: Assignment): Promise<Assignment> {
+  async saveAssignment(assignment: Assignment, userId: string = 'guest'): Promise<Assignment> {
     if (pool) {
       await pool.query(`
-        INSERT INTO assignments (id, filename, file_type, file_data, score, review, uploaded_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO assignments (id, filename, file_type, file_data, score, review, uploaded_at, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (id) DO UPDATE SET
           filename = EXCLUDED.filename,
           file_type = EXCLUDED.file_type,
           file_data = EXCLUDED.file_data,
           score = EXCLUDED.score,
           review = EXCLUDED.review,
-          uploaded_at = EXCLUDED.uploaded_at
+          uploaded_at = EXCLUDED.uploaded_at,
+          user_id = EXCLUDED.user_id
       `, [
         assignment.id,
         assignment.filename,
@@ -372,25 +406,27 @@ export const db = {
         assignment.fileData,
         assignment.score,
         assignment.review,
-        assignment.uploadedAt
+        assignment.uploadedAt,
+        userId
       ]);
       return assignment;
     }
-    const assignments = readFile<Assignment[]>(FILES.assignments);
+    const assignments = readFile<any[]>(FILES.assignments);
     const index = assignments.findIndex((a) => a.id === assignment.id);
+    const asgWithUser = { ...assignment, userId };
     if (index >= 0) {
-      assignments[index] = assignment;
+      assignments[index] = asgWithUser;
     } else {
-      assignments.push(assignment);
+      assignments.push(asgWithUser);
     }
     writeFile(FILES.assignments, assignments);
     return assignment;
   },
 
   // Daily Questions
-  async getDailyQuestions(): Promise<DailyQuestion[]> {
+  async getDailyQuestions(userId: string = 'guest'): Promise<DailyQuestion[]> {
     if (pool) {
-      const res = await pool.query('SELECT * FROM daily_questions');
+      const res = await pool.query('SELECT * FROM daily_questions WHERE user_id = $1', [userId]);
       return res.rows.map((row) => ({
         id: row.id,
         date: row.date,
@@ -402,12 +438,13 @@ export const db = {
         answeredAt: row.answered_at instanceof Date ? row.answered_at.toISOString() : row.answered_at
       }));
     }
-    return readFile<DailyQuestion[]>(FILES.daily_questions);
+    const questions = readFile<any[]>(FILES.daily_questions);
+    return questions.filter((q) => q.userId === userId || (!q.userId && userId === 'guest'));
   },
 
-  async getDailyQuestionByDate(dateStr: string): Promise<DailyQuestion | null> {
+  async getDailyQuestionByDate(dateStr: string, userId: string = 'guest'): Promise<DailyQuestion | null> {
     if (pool) {
-      const res = await pool.query('SELECT * FROM daily_questions WHERE date = $1', [dateStr]);
+      const res = await pool.query('SELECT * FROM daily_questions WHERE date = $1 AND user_id = $2', [dateStr, userId]);
       if (res.rows.length === 0) return null;
       const row = res.rows[0];
       return {
@@ -421,16 +458,16 @@ export const db = {
         answeredAt: row.answered_at instanceof Date ? row.answered_at.toISOString() : row.answered_at
       };
     }
-    const questions = readFile<DailyQuestion[]>(FILES.daily_questions);
-    return questions.find((q) => q.date === dateStr) || null;
+    const questions = readFile<any[]>(FILES.daily_questions);
+    return questions.find((q) => q.date === dateStr && (q.userId === userId || (!q.userId && userId === 'guest'))) || null;
   },
 
-  async saveDailyQuestion(question: DailyQuestion): Promise<DailyQuestion> {
+  async saveDailyQuestion(question: DailyQuestion, userId: string = 'guest'): Promise<DailyQuestion> {
     if (pool) {
       await pool.query(`
-        INSERT INTO daily_questions (id, date, subject, question, user_answer, ai_feedback, score, answered_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        ON CONFLICT (date) DO UPDATE SET
+        INSERT INTO daily_questions (id, date, subject, question, user_answer, ai_feedback, score, answered_at, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (date, user_id) DO UPDATE SET
           id = EXCLUDED.id,
           subject = EXCLUDED.subject,
           question = EXCLUDED.question,
@@ -446,25 +483,27 @@ export const db = {
         question.userAnswer,
         question.aiFeedback,
         question.score,
-        question.answeredAt
+        question.answeredAt,
+        userId
       ]);
       return question;
     }
-    const questions = readFile<DailyQuestion[]>(FILES.daily_questions);
-    const index = questions.findIndex((q) => q.date === question.date);
+    const questions = readFile<any[]>(FILES.daily_questions);
+    const index = questions.findIndex((q) => q.date === question.date && (q.userId === userId || (!q.userId && userId === 'guest')));
+    const qWithUser = { ...question, userId };
     if (index >= 0) {
-      questions[index] = question;
+      questions[index] = qWithUser;
     } else {
-      questions.push(question);
+      questions.push(qWithUser);
     }
     writeFile(FILES.daily_questions, questions);
     return question;
   },
 
   // Weekly Reviews
-  async getWeeklyReviews(): Promise<WeeklyReview[]> {
+  async getWeeklyReviews(userId: string = 'guest'): Promise<WeeklyReview[]> {
     if (pool) {
-      const res = await pool.query('SELECT * FROM weekly_reviews');
+      const res = await pool.query('SELECT * FROM weekly_reviews WHERE user_id = $1', [userId]);
       return res.rows.map((row) => ({
         id: row.id,
         weekRange: row.week_range,
@@ -474,15 +513,16 @@ export const db = {
         statistics: typeof row.statistics === 'string' ? JSON.parse(row.statistics) : row.statistics
       }));
     }
-    return readFile<WeeklyReview[]>(FILES.weekly_reviews);
+    const reviews = readFile<any[]>(FILES.weekly_reviews);
+    return reviews.filter((r) => r.userId === userId || (!r.userId && userId === 'guest'));
   },
 
-  async saveWeeklyReview(review: WeeklyReview): Promise<WeeklyReview> {
+  async saveWeeklyReview(review: WeeklyReview, userId: string = 'guest'): Promise<WeeklyReview> {
     if (pool) {
       await pool.query(`
-        INSERT INTO weekly_reviews (id, week_range, released_at, summary, achievements, statistics)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (id) DO UPDATE SET
+        INSERT INTO weekly_reviews (id, week_range, released_at, summary, achievements, statistics, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (id, user_id) DO UPDATE SET
           week_range = EXCLUDED.week_range,
           released_at = EXCLUDED.released_at,
           summary = EXCLUDED.summary,
@@ -494,16 +534,18 @@ export const db = {
         review.releasedAt,
         review.summary,
         JSON.stringify(review.achievements),
-        JSON.stringify(review.statistics)
+        JSON.stringify(review.statistics),
+        userId
       ]);
       return review;
     }
-    const reviews = readFile<WeeklyReview[]>(FILES.weekly_reviews);
-    const index = reviews.findIndex((r) => r.id === review.id);
+    const reviews = readFile<any[]>(FILES.weekly_reviews);
+    const index = reviews.findIndex((r) => r.id === review.id && (r.userId === userId || (!r.userId && userId === 'guest')));
+    const rWithUser = { ...review, userId };
     if (index >= 0) {
-      reviews[index] = review;
+      reviews[index] = rWithUser;
     } else {
-      reviews.push(review);
+      reviews.push(rWithUser);
     }
     writeFile(FILES.weekly_reviews, reviews);
     return review;

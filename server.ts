@@ -38,10 +38,20 @@ function parseBase64(base64Str: string) {
 // API ROUTES
 // ==========================================
 
+// Helper: get userId from header
+function getUserId(req: express.Request): string {
+  return (req.headers['x-user-id'] as string) || 'guest';
+}
+
+// ==========================================
+// API ROUTES
+// ==========================================
+
 // 1. Explorations API List
 app.get('/api/explorations', async (req, res) => {
   try {
-    const list = await db.getExploreReports();
+    const userId = getUserId(req);
+    const list = await db.getExploreReports(userId);
     // Sort reviews by date descending
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     res.json(list);
@@ -123,7 +133,7 @@ KETENTUAN GAYA BAHASA & STRUKTUR:
 Siswa baru saja mengunggah foto eksplorasi sains/alam mereka sendiri.
 Deskripsi siswa: "${description}"
 
-PENTING: Di dalam teks kalimat "message", sisipkan notasi rujukan inline berupa indeks angka dalam tanda kurung siku seperti [1] atau [2] pada bagian kalimat/teori/fakta unik yang didukung oleh jurnal di array "journals" (misal: "Gigi roda biologis ini mengunci kaki saat mereka bersiap melompat [1]."). Pastikan angka indeks dimulai dari [1] dan sesuai dengan urutan referensi jurnal di array "journals".
+PENTING: Di dalam teks kalimat "message", sisipkan notasi rujukan inline berupa indeks angka dalam tanda kurung siku seperti [1] or [2] pada bagian kalimat/teori/fakta unik yang didukung oleh jurnal di array "journals" (misal: "Gigi roda biologis ini mengunci kaki saat mereka bersiap melompat [1]."). Pastikan angka indeks dimulai dari [1] dan sesuai dengan urutan referensi jurnal di array "journals".
 
 Sertakan juga minimal 1 objek ilustrasi sains bertema ilmiah dalam array "illustrations".
 Setiap ilustrasi membutuhkan:
@@ -143,7 +153,7 @@ Setiap jurnal membutuhkan:
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: 'application/json',
@@ -188,7 +198,8 @@ Setiap jurnal membutuhkan:
       chatHistory: initialChat,
     };
 
-    await db.saveExploreReport(report);
+    const userId = getUserId(req);
+    await db.saveExploreReport(report, userId);
     res.status(201).json(report);
   } catch (error: any) {
     console.error('Error in explorations API:', error);
@@ -205,7 +216,8 @@ app.post('/api/explorations/:id/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required.' });
     }
 
-    const reports = await db.getExploreReports();
+    const userId = getUserId(req);
+    const reports = await db.getExploreReports(userId);
     const report = reports.find((r) => r.id === id);
     if (!report) {
       return res.status(404).json({ error: 'Exploration report not found.' });
@@ -246,7 +258,7 @@ app.post('/api/explorations/:id/chat', async (req, res) => {
           },
         });
       } catch (attachErr) {
-        console.error("Error parsing base64 attachment in chat продолжение:", attachErr);
+        console.error("Error parsing base64 attachment in chat continuation:", attachErr);
       }
     }
 
@@ -278,8 +290,8 @@ Kembalikan jawaban penuh dalam JSON terstruktur sesuai skema.`;
     parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: { parts },
+      model: 'gemini-2.5-flash',
+      contents: parts,
       config: {
         responseMimeType: 'application/json',
         responseSchema: KakakAiSchema,
@@ -309,7 +321,7 @@ Kembalikan jawaban penuh dalam JSON terstruktur sesuai skema.`;
     };
     report.chatHistory.push(aiMsg);
 
-    await db.saveExploreReport(report);
+    await db.saveExploreReport(report, userId);
     res.json(report);
   } catch (error: any) {
     console.error('Error inside chat exploration:', error);
@@ -320,7 +332,8 @@ Kembalikan jawaban penuh dalam JSON terstruktur sesuai skema.`;
 // 4. Assignments Review & list API
 app.get('/api/assignments', async (req, res) => {
   try {
-    const assignments = await db.getAssignments();
+    const userId = getUserId(req);
+    const assignments = await db.getAssignments(userId);
     assignments.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
     res.json(assignments);
   } catch (error: any) {
@@ -362,7 +375,7 @@ Harap kembalikan respon dalam struktur objek JSON dengan key:
 "score" (integer) dan "review" (markdown string)`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: { parts: [documentPart, { text: promptText }] },
       config: {
         responseMimeType: 'application/json',
@@ -396,7 +409,8 @@ Harap kembalikan respon dalam struktur objek JSON dengan key:
       uploadedAt,
     };
 
-    await db.saveAssignment(assignment);
+    const userId = getUserId(req);
+    await db.saveAssignment(assignment, userId);
     res.status(201).json(assignment);
   } catch (error: any) {
     console.error('Error in assignments checking:', error);
@@ -407,23 +421,35 @@ Harap kembalikan respon dalam struktur objek JSON dengan key:
 // 6. Get Daily Essay Question
 app.get('/api/questions/today', async (req, res) => {
   try {
+    const userId = getUserId(req);
     const todayStr = new Date().toISOString().split('T')[0];
-    let dailyQuestion = await db.getDailyQuestionByDate(todayStr);
+    let dailyQuestion = await db.getDailyQuestionByDate(todayStr, userId);
 
     if (!dailyQuestion) {
-      // Subjects randomized pool
-      const subjects = [
-        'Sains dan Alam',
-        'Sejarah Dunia',
-        'Matematika Pemikiran',
-        'Bahasa dan Sastra',
-        'Teknologi dan Masyarakat',
-        'Geografi dan Budaya',
-        'Seni rupa dan Musik',
-      ];
-      const randomSubject = subjects[Math.floor(Math.random() * subjects.length)];
+      // Check if today's question was already generated for ANY user, so all students solve the same question today!
+      let subject = 'Sains dan Alam';
+      let question = 'Berikan deskripsi singkat tentang pentingnya menjaga sumber air bersih di sekitar pemukiman padat penduduk.';
+      
+      try {
+        const poolQuestionsRes = await db.getDailyQuestions('guest');
+        const anyToday = poolQuestionsRes.find(q => q.date === todayStr);
+        if (anyToday) {
+          subject = anyToday.subject;
+          question = anyToday.question;
+        } else {
+          // Generate a brand new daily question using Gemini!
+          const subjects = [
+            'Sains dan Alam',
+            'Sejarah Dunia',
+            'Matematika Pemikiran',
+            'Bahasa dan Sastra',
+            'Teknologi dan Masyarakat',
+            'Geografi dan Budaya',
+            'Seni rupa dan Musik',
+          ];
+          const randomSubject = subjects[Math.floor(Math.random() * subjects.length)];
 
-      const promptText = `Hasilkan satu pertanyaan esai latihan harian untuk murid (tingkat sekolah menengah) dalam Bahasa Indonesia.
+          const promptText = `Hasilkan satu pertanyaan esai latihan harian untuk murid (tingkat sekolah menengah) dalam Bahasa Indonesia.
 Mata pelajaran yang dipilih hari ini: "${randomSubject}".
 
 Persyaratan Soal:
@@ -434,53 +460,66 @@ Persyaratan Soal:
 Harap kembalikan respon struktur objek JSON dengan key:
 "question" (string) dan "subject" (string).`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: promptText,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              question: { type: Type.STRING },
-              subject: { type: Type.STRING },
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: promptText,
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  question: { type: Type.STRING },
+                  subject: { type: Type.STRING },
+                },
+                required: ['question', 'subject'],
+              },
             },
-            required: ['question', 'subject'],
-          },
-        },
-      });
+          });
 
-      let genResults = {
-        question: 'Berikan deskripsi singkat tentang pentingnya menjaga sumber air bersih di sekitar pemukiman padat penduduk.',
-        subject: randomSubject,
-      };
-
-      if (response.text) {
-        try {
-          genResults = JSON.parse(response.text.trim());
-        } catch (parseErr) {
-          console.error('Error parsing JSON question:', parseErr);
+          if (response.text) {
+            const genResults = JSON.parse(response.text.trim());
+            if (genResults.subject && genResults.question) {
+              subject = genResults.subject;
+              question = genResults.question;
+            }
+          }
         }
+      } catch (err) {
+        console.error('Error fetching/generating base daily question:', err);
       }
 
       dailyQuestion = {
         id: todayStr,
         date: todayStr,
-        subject: genResults.subject,
-        question: genResults.question,
+        subject,
+        question,
         userAnswer: null,
         aiFeedback: null,
         score: null,
         answeredAt: null,
       };
 
-      await db.saveDailyQuestion(dailyQuestion);
+      try {
+        await db.saveDailyQuestion(dailyQuestion, userId);
+      } catch (dbErr) {
+        console.error('Error saving daily question to DB:', dbErr);
+      }
     }
 
     res.json(dailyQuestion);
   } catch (error: any) {
     console.error('Error generating daily question:', error);
-    res.status(500).json({ error: error.message });
+    const todayStr = new Date().toISOString().split('T')[0];
+    res.json({
+      id: todayStr,
+      date: todayStr,
+      subject: 'Sains dan Alam',
+      question: 'Berikan deskripsi singkat tentang pentingnya menjaga sumber air bersih di sekitar pemukiman padat penduduk.',
+      userAnswer: null,
+      aiFeedback: null,
+      score: null,
+      answeredAt: null,
+    });
   }
 });
 
@@ -493,7 +532,8 @@ app.post('/api/questions/today/answer', async (req, res) => {
       return res.status(400).json({ error: 'Jawaban esai tidak boleh kosong.' });
     }
 
-    const dailyQuestion = await db.getDailyQuestionByDate(todayStr);
+    const userId = getUserId(req);
+    const dailyQuestion = await db.getDailyQuestionByDate(todayStr, userId);
     if (!dailyQuestion) {
       return res.status(404).json({ error: 'Soal latihan hari ini belum siap.' });
     }
@@ -517,7 +557,7 @@ Harap kembalikan respon struktur objek JSON dengan key:
 "score" (integer) dan "feedback" (string - santun, hangat, mendidik).`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: promptText,
       config: {
         responseMimeType: 'application/json',
@@ -546,7 +586,7 @@ Harap kembalikan respon struktur objek JSON dengan key:
     dailyQuestion.score = grading.score;
     dailyQuestion.answeredAt = new Date().toISOString();
 
-    await db.saveDailyQuestion(dailyQuestion);
+    await db.saveDailyQuestion(dailyQuestion, userId);
     res.json(dailyQuestion);
   } catch (error: any) {
     console.error('Error grading daily response:', error);
@@ -557,7 +597,8 @@ Harap kembalikan respon struktur objek JSON dengan key:
 // 8. Generate & Get Weekly Review
 app.get('/api/reviews/history', async (req, res) => {
   try {
-    const list = await db.getWeeklyReviews();
+    const userId = getUserId(req);
+    const list = await db.getWeeklyReviews(userId);
     list.sort((a, b) => new Date(b.releasedAt).getTime() - new Date(a.releasedAt).getTime());
     res.json(list);
   } catch (error: any) {
@@ -568,6 +609,7 @@ app.get('/api/reviews/history', async (req, res) => {
 // Trigger generation of weekly review (on-demand or if it is saturday)
 app.post('/api/reviews/generate', async (req, res) => {
   try {
+    const userId = getUserId(req);
     // Current Week Range (from last 7 days)
     const today = new Date();
     const past7Days = new Date();
@@ -582,17 +624,17 @@ app.post('/api/reviews/generate', async (req, res) => {
     const weekYearVal = `${today.getFullYear()}-W${Math.floor(today.getDate() / 7) + 1}`;
 
     // Collect activities from the last 7 days from our db
-    const explorations = (await db.getExploreReports()).filter((e) => {
+    const explorations = (await db.getExploreReports(userId)).filter((e) => {
       const diff = Date.now() - new Date(e.createdAt).getTime();
       return diff <= 7 * 24 * 60 * 60 * 1000;
     });
 
-    const assignments = (await db.getAssignments()).filter((a) => {
+    const assignments = (await db.getAssignments(userId)).filter((a) => {
       const diff = Date.now() - new Date(a.uploadedAt).getTime();
       return diff <= 7 * 24 * 60 * 60 * 1000;
     });
 
-    const essays = (await db.getDailyQuestions()).filter((q) => {
+    const essays = (await db.getDailyQuestions(userId)).filter((q) => {
       if (!q.answeredAt) return false;
       const diff = Date.now() - new Date(q.answeredAt).getTime();
       return diff <= 7 * 24 * 60 * 60 * 1000;
@@ -646,7 +688,7 @@ Harap kembalikan respon struktur objek JSON dengan rumus key:
 "summary" (markdown string ulasan) dan "achievements" (array of string lencana gelar).`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: promptText,
       config: {
         responseMimeType: 'application/json',
@@ -691,7 +733,7 @@ Harap kembalikan respon struktur objek JSON dengan rumus key:
       },
     };
 
-    await db.saveWeeklyReview(weeklyReview);
+    await db.saveWeeklyReview(weeklyReview, userId);
     res.status(201).json(weeklyReview);
   } catch (error: any) {
     console.error('Error generating weekly review:', error);
