@@ -41,6 +41,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { ExploreReport, Assignment, DailyQuestion, WeeklyReview, UserProfile } from './types';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
+import { PublicLandingPage } from './components/PublicLandingPage';
 import { 
   initAuth, 
   googleSignIn, 
@@ -139,9 +140,10 @@ export default function App() {
   // Weekly review Saturday simulator override
   const [simulateSaturday, setSimulateSaturday] = useState<boolean>(false);
 
-  // Google Docs Auth/Export States
+  // Google Docs Auth/Export & Guest Mode States
   const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(null);
   const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [isGuestMode, setIsGuestMode] = useState<boolean>(false);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState<boolean>(false);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [exportSuccessMessage, setExportSuccessMessage] = useState<{ id: string; url: string; title: string } | null>(null);
@@ -197,6 +199,7 @@ export default function App() {
     } finally {
       setGoogleUser(null);
       setGoogleToken(null);
+      setIsGuestMode(false);
       setExportSuccessMessage(null);
       setExportErrorMessage(null);
       setShowProfileMenu(false);
@@ -788,6 +791,18 @@ export default function App() {
     }
   };
 
+  // Render Public Landing Page for unauthenticated/guest/logged-out visitors
+  if (!googleUser && !isGuestMode) {
+    return (
+      <PublicLandingPage
+        onLogin={handleGoogleLogin}
+        onEnterGuest={() => setIsGuestMode(true)}
+        isConnectingGoogle={isConnectingGoogle}
+        isInIframe={isInIframe}
+      />
+    );
+  }
+
   return (
     <div className={`min-h-screen bg-gradient-to-br from-[#FEF1F2]/60 via-[#F1F5F9] to-[#ECF2FE]/60 flex flex-col md:flex-row text-slate-800 font-sans antialiased overflow-x-hidden ${
       selectedExploration 
@@ -1131,16 +1146,25 @@ export default function App() {
                           className="w-full flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0"
                         >
                           <LogOut className="w-3.5 h-3.5" />
-                          <span>Keluar / Putus Akun</span>
+                          <span>Keluar ke Halaman Publik</span>
                         </button>
                       ) : (
-                        <button
-                          onClick={() => { setShowProfileMenu(false); handleGoogleLogin(); }}
-                          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0 shadow-xs"
-                        >
-                          <Sparkle className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                          <span>Hubungkan Google Docs</span>
-                        </button>
+                        <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                          <button
+                            onClick={() => { setShowProfileMenu(false); handleGoogleLogin(); }}
+                            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0 shadow-xs"
+                          >
+                            <Sparkle className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                            <span>Masuk dengan Google</span>
+                          </button>
+                          <button
+                            onClick={handleGoogleLogout}
+                            className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0"
+                          >
+                            <LogOut className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Keluar ke Halaman Publik</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

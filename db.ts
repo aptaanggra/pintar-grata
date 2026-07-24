@@ -353,6 +353,9 @@ export const db = {
   },
   
   async saveExploreReport(report: ExploreReport, userId: string = 'guest'): Promise<ExploreReport> {
+    if (userId === 'guest') {
+      return report;
+    }
     if (pool) {
       await pool.query(`
         INSERT INTO explorations (id, photo_data, description, chat_history, created_at, user_id)
@@ -411,6 +414,9 @@ export const db = {
   },
 
   async saveAssignment(assignment: Assignment, userId: string = 'guest'): Promise<Assignment> {
+    if (userId === 'guest') {
+      return assignment;
+    }
     if (pool) {
       await pool.query(`
         INSERT INTO assignments (id, filename, file_type, file_data, user_note, score, review, chat_history, uploaded_at, user_id)
@@ -511,6 +517,9 @@ export const db = {
   },
 
   async saveDailyQuestion(question: DailyQuestion, userId: string = 'guest'): Promise<DailyQuestion> {
+    if (userId === 'guest') {
+      return question;
+    }
     if (pool) {
       try {
         await pool.query(`
@@ -595,6 +604,9 @@ export const db = {
   },
 
   async saveWeeklyReview(review: WeeklyReview, userId: string = 'guest'): Promise<WeeklyReview> {
+    if (userId === 'guest') {
+      return review;
+    }
     if (pool) {
       await pool.query(`
         INSERT INTO weekly_reviews (id, week_range, released_at, summary, achievements, statistics, user_id)
@@ -658,6 +670,9 @@ export const db = {
   },
 
   async saveUserProfile(profile: UserProfile): Promise<UserProfile> {
+    if (!profile.userId || profile.userId === 'guest') {
+      return profile;
+    }
     const updatedAt = new Date().toISOString();
     const updatedProfile = { ...profile, updatedAt };
 
