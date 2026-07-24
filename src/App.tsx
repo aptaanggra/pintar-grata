@@ -378,6 +378,18 @@ export default function App() {
     setExportingId(null);
   };
 
+  const safeFetchJson = async <T,>(url: string, options?: RequestInit): Promise<T | null> => {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) return null;
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) return null;
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  };
+
   // Fetch initial data
   useEffect(() => {
     fetchUserProfile();
@@ -389,21 +401,14 @@ export default function App() {
   }, [googleUser]);
 
   const fetchUserProfile = async () => {
-    try {
-      const res = await fetch('/api/profile', {
-        headers: { 'x-user-id': googleUser?.uid || 'guest' }
-      });
-      if (res.ok) {
-        const data: UserProfile = await res.json();
-        setUserProfile(data);
-        if (data) {
-          setProfileSchoolName(data.schoolName || '');
-          setProfileGrade(data.grade || '');
-          setProfileFavoriteSubject(data.favoriteSubject || '');
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching user profile:', err);
+    const data = await safeFetchJson<UserProfile>('/api/profile', {
+      headers: { 'x-user-id': googleUser?.uid || 'guest' }
+    });
+    if (data) {
+      setUserProfile(data);
+      setProfileSchoolName(data.schoolName || '');
+      setProfileGrade(data.grade || '');
+      setProfileFavoriteSubject(data.favoriteSubject || '');
     }
   };
 
@@ -430,14 +435,13 @@ export default function App() {
           email: googleUser?.email || undefined
         })
       });
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         setUserProfile(data);
         setProfileSavedSuccess(true);
         setTimeout(() => setProfileSavedSuccess(false), 4000);
       } else {
-        const errData = await res.json();
-        alert('Gagal menyimpan profil: ' + (errData.error || 'Terjadi kesalahan.'));
+        alert('Gagal menyimpan profil: server tidak tersedia.');
       }
     } catch (err) {
       console.error('Error saving profile:', err);
@@ -452,51 +456,48 @@ export default function App() {
   }, [selectedExploration, selectedExploration?.chatHistory]);
 
   const checkSaturdayStatus = async () => {
-    try {
-      const res = await fetch('/api/saturday-check');
-      const data = await res.json();
+    const data = await safeFetchJson<{ isSaturday: boolean; dayName: string }>('/api/saturday-check');
+    if (data) {
       setIsSaturday(data.isSaturday);
       setDayName(data.dayName);
-    } catch (err) {
-      console.error("Error checking Saturday status:", err);
+    } else {
+      const today = new Date();
+      setIsSaturday(today.getDay() === 6);
+      setDayName(today.toLocaleDateString('id-ID', { weekday: 'long' }));
     }
   };
 
   const fetchExplorations = async () => {
-    try {
-      const res = await fetch('/api/explorations', {
-        headers: { 'x-user-id': googleUser?.uid || 'guest' }
-      });
-      const data = await res.json();
+    const data = await safeFetchJson<ExploreReport[]>('/api/explorations', {
+      headers: { 'x-user-id': googleUser?.uid || 'guest' }
+    });
+    if (data && Array.isArray(data)) {
       setExplorations(data);
-    } catch (err) {
-      console.error("Error explorations:", err);
+    } else {
+      setExplorations([]);
     }
   };
 
   const fetchAssignments = async () => {
-    try {
-      const res = await fetch('/api/assignments', {
-        headers: { 'x-user-id': googleUser?.uid || 'guest' }
-      });
-      const data = await res.json();
+    const data = await safeFetchJson<Assignment[]>('/api/assignments', {
+      headers: { 'x-user-id': googleUser?.uid || 'guest' }
+    });
+    if (data && Array.isArray(data)) {
       setAssignments(data);
-    } catch (err) {
-      console.error("Error assignments:", err);
+    } else {
+      setAssignments([]);
     }
   };
 
   const fetchTodayQuestion = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/questions/today', {
+      const data = await safeFetchJson<DailyQuestion>('/api/questions/today', {
         headers: { 'x-user-id': googleUser?.uid || 'guest' }
       });
-      const data = await res.json();
       if (data && data.question) {
         setEssayQuestion(data);
       } else {
-        console.error("Error today question response:", data);
         const todayStr = new Date().toISOString().split('T')[0];
         setEssayQuestion({
           id: todayStr,
@@ -509,33 +510,19 @@ export default function App() {
           answeredAt: null
         });
       }
-    } catch (err) {
-      console.error("Error today quiz:", err);
-      const todayStr = new Date().toISOString().split('T')[0];
-      setEssayQuestion({
-        id: todayStr,
-        date: todayStr,
-        subject: 'Geografi dan Budaya',
-        question: 'Bagaimana kondisi geografis negara kepulauan Indonesia memengaruhi mata pencaharian penduduk, keragaman budaya, dan integrasi sosial antar suku bangsa?',
-        userAnswer: null,
-        aiFeedback: null,
-        score: null,
-        answeredAt: null
-      });
     } finally {
       setLoading(false);
     }
   };
 
   const fetchWeeklyReviews = async () => {
-    try {
-      const res = await fetch('/api/reviews/history', {
-        headers: { 'x-user-id': googleUser?.uid || 'guest' }
-      });
-      const data = await res.json();
+    const data = await safeFetchJson<WeeklyReview[]>('/api/reviews/history', {
+      headers: { 'x-user-id': googleUser?.uid || 'guest' }
+    });
+    if (data && Array.isArray(data)) {
       setWeeklyReviews(data);
-    } catch (err) {
-      console.error("Error reviews:", err);
+    } else {
+      setWeeklyReviews([]);
     }
   };
 
@@ -592,8 +579,8 @@ export default function App() {
           description: exploreDesc
         })
       });
-      const newExp = await res.json();
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const newExp = await res.json();
         setExplorations(prev => [newExp, ...prev]);
         setSelectedExploration(newExp);
         setExploreDesc('');
@@ -659,8 +646,8 @@ export default function App() {
           attachment: currentAttachment
         })
       });
-      const updatedReport = await res.json();
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const updatedReport = await res.json();
         setExplorations(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
         setSelectedExploration(updatedReport);
       }
@@ -691,8 +678,8 @@ export default function App() {
           userNote: assignmentUserNote
         })
       });
-      const newAsg = await res.json();
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const newAsg = await res.json();
         setAssignments(prev => [newAsg, ...prev]);
         setAssignmentFile(null);
         setAssignmentUserNote('');
@@ -700,6 +687,8 @@ export default function App() {
         setUploadProgress('');
         setActiveTab('assignment');
         setSelectedAssignment(newAsg);
+      } else {
+        setUploadProgress('Gagal mengirimkan tugas. Server tidak dapat merespons.');
       }
     } catch (err) {
       console.error("Error submitting assignment:", err);
@@ -731,8 +720,8 @@ export default function App() {
           attachment: currentAttachment
         })
       });
-      const updatedAsg = await res.json();
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const updatedAsg = await res.json();
         setAssignments(prev => prev.map(a => a.id === updatedAsg.id ? updatedAsg : a));
         setSelectedAssignment(updatedAsg);
       }
@@ -757,8 +746,8 @@ export default function App() {
         },
         body: JSON.stringify({ answer: essayAnswerInput })
       });
-      const updatedQ = await res.json();
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const updatedQ = await res.json();
         setEssayQuestion(updatedQ);
         setEssayAnswerInput('');
         fetchExplorations(); 
@@ -780,8 +769,8 @@ export default function App() {
           'x-user-id': googleUser?.uid || 'guest'
         }
       });
-      const newReview = await res.json();
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const newReview = await res.json();
         setWeeklyReviews(prev => [newReview, ...prev]);
       }
     } catch (err) {
