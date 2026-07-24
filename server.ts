@@ -22,15 +22,56 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Helper: split base64 prefix
-function parseBase64(base64Str: string) {
-  const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-  if (!matches || matches.length !== 3) {
-    return { mimeType: 'image/png', data: base64Str }; // fallback
+// Helper: robust base64 parser for Gemini inlineData
+function parseBase64(inputStr: string): { mimeType: string; data: string } {
+  if (!inputStr) {
+    return { mimeType: 'image/png', data: '' };
   }
+
+  const str = inputStr.trim();
+
+  // 1. Standard base64 data URI: data:image/png;base64,XXXX...
+  const base64DataUriMatch = str.match(/^data:([A-Za-z0-9-+\/]+);base64,(.+)$/s);
+  if (base64DataUriMatch) {
+    let mime = base64DataUriMatch[1];
+    let base64Data = base64DataUriMatch[2].replace(/\s/g, '');
+    if (mime.includes('svg')) {
+      mime = 'image/png';
+    }
+    return { mimeType: mime, data: base64Data };
+  }
+
+  // 2. Non-base64 data URI (e.g., data:image/svg+xml;utf8,<svg...> or data:image/svg+xml,<svg...>)
+  const utf8DataUriMatch = str.match(/^data:([A-Za-z0-9-+\/]+)(?:;[a-zA-Z0-9=-]+)*,(.+)$/s);
+  if (utf8DataUriMatch) {
+    try {
+      const rawContent = decodeURIComponent(utf8DataUriMatch[2]);
+      const base64Data = Buffer.from(rawContent, 'utf-8').toString('base64');
+      return { mimeType: 'image/png', data: base64Data };
+    } catch {
+      const base64Data = Buffer.from(utf8DataUriMatch[2], 'utf-8').toString('base64');
+      return { mimeType: 'image/png', data: base64Data };
+    }
+  }
+
+  // 3. Raw SVG text starting with or containing <svg
+  if (str.startsWith('<svg') || str.includes('<svg')) {
+    const base64Data = Buffer.from(str, 'utf-8').toString('base64');
+    return { mimeType: 'image/png', data: base64Data };
+  }
+
+  // 4. Raw base64 string without data: header
+  const cleanStr = str.replace(/^data:.*?,/, '').replace(/\s/g, '');
+  
+  const isBase64 = /^[A-Za-z0-9+/=]+$/.test(cleanStr);
+  if (isBase64 && cleanStr.length > 0) {
+    return { mimeType: 'image/png', data: cleanStr };
+  }
+
+  // 5. Fallback for any other plain string
   return {
-    mimeType: matches[1],
-    data: matches[2],
+    mimeType: 'image/png',
+    data: Buffer.from(str, 'utf-8').toString('base64'),
   };
 }
 
@@ -43,9 +84,53 @@ function getUserId(req: express.Request): string {
   return (req.headers['x-user-id'] as string) || 'guest';
 }
 
+async function getStudentProfileContext(userId: string): Promise<string> {
+  try {
+    const profile = await db.getUserProfile(userId);
+    if (profile && (profile.schoolName || profile.grade)) {
+      return `\n[PROFIL & LEVEL BELAJAR SISWA]:\n- Sekolah: "${profile.schoolName || 'Tidak diisi'}"\n- Kelas/Tingkat: "${profile.grade || 'Tidak diisi'}"\n- Pelajaran Favorit: "${profile.favoriteSubject || 'Umum'}"\nPETUNJUK UTAMA: Sesuaikan tingkat kesulitan soal, istilah teknis, gaya penjelasan, dan contoh kasus agar sangat pas dengan level pendidikan/kelas siswa ini (${profile.grade}).`;
+    }
+  } catch (e) {
+    console.error('Error fetching profile context:', e);
+  }
+  return '';
+}
+
 // ==========================================
 // API ROUTES
 // ==========================================
+
+// 0. User Profile API Routes
+app.get('/api/profile', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const profile = await db.getUserProfile(userId);
+    res.json(profile || { userId, schoolName: '', grade: '', favoriteSubject: '' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/profile', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { schoolName, grade, favoriteSubject, name, email } = req.body;
+    if (!schoolName || !grade || !favoriteSubject) {
+      return res.status(400).json({ error: 'Nama sekolah, kelas, dan pelajaran favorit wajib diisi.' });
+    }
+    const updated = await db.saveUserProfile({
+      userId,
+      schoolName: String(schoolName).trim(),
+      grade: String(grade).trim(),
+      favoriteSubject: String(favoriteSubject).trim(),
+      name,
+      email
+    });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // 1. Explorations API List
 app.get('/api/explorations', async (req, res) => {
@@ -153,7 +238,7 @@ Setiap jurnal membutuhkan:
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: 'application/json',
@@ -290,7 +375,7 @@ Kembalikan jawaban penuh dalam JSON terstruktur sesuai skema.`;
     parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: parts,
       config: {
         responseMimeType: 'application/json',
@@ -344,7 +429,7 @@ app.get('/api/assignments', async (req, res) => {
 // 5. Submit Document Assignment for AI valuation
 app.post('/api/assignments', async (req, res) => {
   try {
-    const { filename, fileType, fileData } = req.body;
+    const { filename, fileType, fileData, userNote } = req.body;
     if (!filename || !fileType || !fileData) {
       return res.status(400).json({ error: 'Filename, fileType, and fileData are required.' });
     }
@@ -360,8 +445,12 @@ app.post('/api/assignments', async (req, res) => {
       },
     };
 
-    const promptText = `Anda adalah seorang "Guru Korektor AI" profesional yang sangat cerdas, adil, teliti, namun mendidik dan memberikan motivasi membangun.
+    const userId = getUserId(req);
+    const studentProfileCtx = await getStudentProfileContext(userId);
+
+    const promptText = `Anda adalah seorang "Guru Korektor AI" profesional & mentor bimbingan sains mendalam.${studentProfileCtx}
 Periksa dokumen tugas siswa berikut yang diunggah dengan nama file: "${filename}" dan format: "${fileType}".
+${userNote ? `\nCatatan / Pertanyaan Tambahan dari Siswa: "${userNote}"` : ''}
 
 Tugas Anda:
 1. Berikan skor numerik (nilai tugas) dari rentang 0 sampai 100 secara objektif berdasarkan kerapian, kelengkapan, dan akurasi isi yang tampak di dokumen.
@@ -375,7 +464,7 @@ Harap kembalikan respon dalam struktur objek JSON dengan key:
 "score" (integer) dan "review" (markdown string)`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: { parts: [documentPart, { text: promptText }] },
       config: {
         responseMimeType: 'application/json',
@@ -399,21 +488,161 @@ Harap kembalikan respon dalam struktur objek JSON dengan key:
       }
     }
 
+    const initialChatHistory: ChatMessage[] = [
+      {
+        sender: 'user',
+        message: `Halo Guru AI, saya mengajukan lembar Tugas Pintar: "${filename}"${userNote ? `\n\nCatatan/Pertanyaan Saya: "${userNote}"` : ''}`,
+        timestamp: uploadedAt
+      },
+      {
+        sender: 'ai',
+        message: `Tugas "${filename}" telah selesai dikoreksi dengan skor **${result.score}/100**!\n\nBerikut ringkasan evaluasi:\n${result.review}\n\nSilakan ajukan pertanyaan atau minta penjelasan lebih mendalam jika ada bagian soal yang belum kamu pahami!`,
+        timestamp: new Date().toISOString()
+      }
+    ];
+
     const assignment: Assignment = {
       id: assignmentId,
       filename,
       fileType,
       fileData,
+      userNote: userNote || undefined,
       score: result.score,
       review: result.review,
       uploadedAt,
+      chatHistory: initialChatHistory
     };
 
-    const userId = getUserId(req);
     await db.saveAssignment(assignment, userId);
     res.status(201).json(assignment);
   } catch (error: any) {
     console.error('Error in assignments checking:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5.b Continue chat / discussion for a specific assignment
+app.post('/api/assignments/:id/chat', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message, attachment } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required.' });
+    }
+
+    const userId = getUserId(req);
+    const assignments = await db.getAssignments(userId);
+    const assignment = assignments.find((a) => a.id === id);
+    if (!assignment) {
+      return res.status(404).json({ error: 'Assignment not found.' });
+    }
+
+    if (!assignment.chatHistory) {
+      assignment.chatHistory = [];
+    }
+
+    const userMsg: ChatMessage = {
+      sender: 'user',
+      message: message,
+      timestamp: new Date().toISOString(),
+      ...(attachment ? { attachment } : {}),
+    };
+    assignment.chatHistory.push(userMsg);
+
+    const studentProfileCtx = await getStudentProfileContext(userId);
+
+    // Build chat context
+    const chatHistoryContext = assignment.chatHistory
+      .map((c) => `${c.sender === 'user' ? 'Siswa' : 'Guru AI'}: ${c.message}${c.attachment ? ` [Lampiran file: ${c.attachment.filename}]` : ''}`)
+      .join('\n');
+
+    const parts: any[] = [];
+
+    // 1) Main assignment file
+    try {
+      const filePart = parseBase64(assignment.fileData);
+      parts.push({
+        inlineData: {
+          mimeType: filePart.mimeType,
+          data: filePart.data,
+        },
+      });
+    } catch (e) {
+      console.error('Error parsing assignment file data:', e);
+    }
+
+    // 2) Optional attachment in this chat turn
+    if (attachment && attachment.data) {
+      try {
+        const attachPart = parseBase64(attachment.data);
+        parts.push({
+          inlineData: {
+            mimeType: attachPart.mimeType,
+            data: attachPart.data,
+          },
+        });
+      } catch (attachErr) {
+        console.error('Error parsing chat attachment:', attachErr);
+      }
+    }
+
+    const promptText = `Anda adalah "Guru AI" yang sabar, cerdas, dan interaktif.${studentProfileCtx}
+Siswa sedang berdiskusi mengenai lembar tugas yang diunggah dengan nama file: "${assignment.filename}" (Skor Evaluasi: ${assignment.score}/100).
+
+REKAM OBROLAN TUGAS SEBELUMNYA:
+${chatHistoryContext}
+
+PERTANYAAN BARU SISWA:
+"${message}"
+
+TUGAS ANDA:
+1. Jawab pertanyaan siswa secara lugas, ramah, dan sangat mendidik.
+2. Jika siswa bertanya tentang rumus, langkah penyelesaian, atau konsep yang membingungkan dari tugasnya, berikan penjelasan runtut langkah-demi-langkah.
+3. Sisipkan notasi rujukan inline [1], [2] jika relevan dengan daftar jurnal.
+4. Jika bermanfaat untuk memperjelas visual, buatlah 1 ilustrasi diagram SVG ilmiah di array "illustrations".
+5. Jika relevan, sertakan 1-2 referensi akademik/jurnal di array "journals".
+
+Kembalikan jawaban dalam format JSON sesuai schema (message, illustrations, journals).`;
+
+    parts.push({ text: promptText });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
+      contents: parts,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: KakakAiSchema,
+      }
+    });
+
+    let result = {
+      message: 'Pertanyaan bagus! Mari kita bedah bersama.',
+      illustrations: [] as any[],
+      journals: [] as any[]
+    };
+
+    if (response.text) {
+      try {
+        result = JSON.parse(response.text.trim());
+      } catch (parseErr) {
+        console.error('Error parsing JSON response in assignment chat:', parseErr);
+      }
+    }
+
+    const aiMsg: ChatMessage = {
+      sender: 'ai',
+      message: result.message,
+      timestamp: new Date().toISOString(),
+      illustrations: result.illustrations,
+      journals: result.journals,
+    };
+
+    assignment.chatHistory.push(aiMsg);
+
+    await db.saveAssignment(assignment, userId);
+    res.json(assignment);
+  } catch (error: any) {
+    console.error('Error inside assignment chat endpoint:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -448,8 +677,9 @@ app.get('/api/questions/today', async (req, res) => {
             'Seni rupa dan Musik',
           ];
           const randomSubject = subjects[Math.floor(Math.random() * subjects.length)];
+          const studentProfileCtx = await getStudentProfileContext(userId);
 
-          const promptText = `Hasilkan satu pertanyaan esai latihan harian untuk murid (tingkat sekolah menengah) dalam Bahasa Indonesia.
+          const promptText = `Hasilkan satu pertanyaan esai latihan harian untuk murid dalam Bahasa Indonesia.${studentProfileCtx}
 Mata pelajaran yang dipilih hari ini: "${randomSubject}".
 
 Persyaratan Soal:
@@ -461,7 +691,7 @@ Harap kembalikan respon struktur objek JSON dengan key:
 "question" (string) dan "subject" (string).`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.6-flash',
             contents: promptText,
             config: {
               responseMimeType: 'application/json',
@@ -557,7 +787,7 @@ Harap kembalikan respon struktur objek JSON dengan key:
 "score" (integer) dan "feedback" (string - santun, hangat, mendidik).`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: promptText,
       config: {
         responseMimeType: 'application/json',
@@ -688,7 +918,7 @@ Harap kembalikan respon struktur objek JSON dengan rumus key:
 "summary" (markdown string ulasan) dan "achievements" (array of string lencana gelar).`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: promptText,
       config: {
         responseMimeType: 'application/json',

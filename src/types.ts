@@ -42,9 +42,11 @@ export interface Assignment {
   filename: string;
   fileType: string; // 'png' | 'pdf' | 'jpg' | 'jpeg' | etc.
   fileData: string; // Base64 data representation
+  userNote?: string;
   score: number | null;
   review: string | null; // AI feedback review
   uploadedAt: string;
+  chatHistory?: ChatMessage[];
 }
 
 export interface DailyQuestion {
@@ -71,3 +73,14 @@ export interface WeeklyReview {
     averageScore: number;
   };
 }
+
+export interface UserProfile {
+  userId: string;
+  name?: string;
+  email?: string;
+  schoolName: string;
+  grade: string;
+  favoriteSubject: string;
+  updatedAt?: string;
+}
+

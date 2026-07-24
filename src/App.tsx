@@ -26,10 +26,20 @@ import {
   X,
   Copy,
   Check,
-  LogOut
+  MessageSquare,
+  LogOut,
+  User as UserIcon,
+  School,
+  BookMarked,
+  AlertTriangle,
+  CheckCircle2,
+  Save,
+  ShieldCheck,
+  Eye,
+  ZoomIn
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ExploreReport, Assignment, DailyQuestion, WeeklyReview } from './types';
+import { ExploreReport, Assignment, DailyQuestion, WeeklyReview, UserProfile } from './types';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { 
   initAuth, 
@@ -37,7 +47,7 @@ import {
   logout as googleLogout, 
 } from './auth';
 import { createGoogleDocFromStudy } from './googleDocsService';
-import { User } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 
 // Predefined mock assets for single-click trial templates
 const DEMO_EXPLORATIONS = [
@@ -69,8 +79,16 @@ const DEMO_ASSIGNMENTS = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'explore' | 'assignment' | 'essay' | 'weekly'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'assignment' | 'essay' | 'weekly' | 'profile'>('explore');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+
+  // User Profile States
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [profileSchoolName, setProfileSchoolName] = useState<string>('');
+  const [profileGrade, setProfileGrade] = useState<string>('');
+  const [profileFavoriteSubject, setProfileFavoriteSubject] = useState<string>('');
+  const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
+  const [profileSavedSuccess, setProfileSavedSuccess] = useState<boolean>(false);
 
   // Auto-collapse sidebar on tablet portrait view (< 1024px) on mount
   useEffect(() => {
@@ -97,6 +115,9 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   
+  // Global Image Lightbox Preview State
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
   // Inputs for Exploration Create Form
   const [exploreDesc, setExploreDesc] = useState<string>('');
   const [explorePhoto, setExplorePhoto] = useState<string>('');
@@ -106,6 +127,11 @@ export default function App() {
   const [showNewAssignmentModal, setShowNewAssignmentModal] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [assignmentFile, setAssignmentFile] = useState<{ filename: string; type: string; data: string } | null>(null);
+  const [assignmentUserNote, setAssignmentUserNote] = useState<string>('');
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [asgChatInput, setAsgChatInput] = useState<string>('');
+  const [asgChatAttachment, setAsgChatAttachment] = useState<{ filename: string; type: string; data: string } | null>(null);
+  const [asgChatLoading, setAsgChatLoading] = useState<boolean>(false);
 
   // Essay Input
   const [essayAnswerInput, setEssayAnswerInput] = useState<string>('');
@@ -114,7 +140,7 @@ export default function App() {
   const [simulateSaturday, setSimulateSaturday] = useState<boolean>(false);
 
   // Google Docs Auth/Export States
-  const [googleUser, setGoogleUser] = useState<User | null>(null);
+  const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(null);
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState<boolean>(false);
   const [exportingId, setExportingId] = useState<string | null>(null);
@@ -351,12 +377,72 @@ export default function App() {
 
   // Fetch initial data
   useEffect(() => {
+    fetchUserProfile();
     fetchExplorations();
     fetchAssignments();
     fetchTodayQuestion();
     fetchWeeklyReviews();
     checkSaturdayStatus();
   }, [googleUser]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const res = await fetch('/api/profile', {
+        headers: { 'x-user-id': googleUser?.uid || 'guest' }
+      });
+      if (res.ok) {
+        const data: UserProfile = await res.json();
+        setUserProfile(data);
+        if (data) {
+          setProfileSchoolName(data.schoolName || '');
+          setProfileGrade(data.grade || '');
+          setProfileFavoriteSubject(data.favoriteSubject || '');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+    }
+  };
+
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!profileSchoolName.trim() || !profileGrade.trim() || !profileFavoriteSubject.trim()) {
+      alert('Mohon lengkapi semua data wajib: Nama Sekolah, Kelas, dan Pelajaran Favorit.');
+      return;
+    }
+    setIsSavingProfile(true);
+    setProfileSavedSuccess(false);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': googleUser?.uid || 'guest'
+        },
+        body: JSON.stringify({
+          schoolName: profileSchoolName.trim(),
+          grade: profileGrade.trim(),
+          favoriteSubject: profileFavoriteSubject.trim(),
+          name: googleUser?.displayName || undefined,
+          email: googleUser?.email || undefined
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUserProfile(data);
+        setProfileSavedSuccess(true);
+        setTimeout(() => setProfileSavedSuccess(false), 4000);
+      } else {
+        const errData = await res.json();
+        alert('Gagal menyimpan profil: ' + (errData.error || 'Terjadi kesalahan.'));
+      }
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      alert('Terjadi kesalahan jaringan saat menyimpan profil.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -450,6 +536,22 @@ export default function App() {
     }
   };
 
+  const applyPresetExploration = (preset: typeof DEMO_EXPLORATIONS[0]) => {
+    setExploreDesc(preset.desc);
+    setExplorePhoto(preset.image);
+  };
+
+  const applyPresetAssignment = (preset: typeof DEMO_ASSIGNMENTS[0], note?: string) => {
+    setAssignmentFile({
+      filename: preset.filename,
+      type: preset.type,
+      data: preset.image
+    });
+    if (note) {
+      setAssignmentUserNote(note);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'explore' | 'assignment') => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -529,38 +631,7 @@ export default function App() {
   };
 
   const renderMessageWithCitations = (text: string, journals: ExploreReport['chatHistory'][0]['journals']) => {
-    if (!journals || journals.length === 0) {
-      return <p className="whitespace-pre-line leading-relaxed">{text}</p>;
-    }
-
-    const parts = text.split(/(\[\d+\])/g);
-    return (
-      <p className="whitespace-pre-line leading-relaxed">
-        {parts.map((part, index) => {
-          const match = part.match(/^\[(\d+)\]$/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            const journalIdx = num - 1;
-            if (journals[journalIdx]) {
-              const ref = journals[journalIdx];
-              return (
-                <a
-                  key={index}
-                  href={ref.url.startsWith('http') ? ref.url : `https://scholar.google.com/scholar?q=${encodeURIComponent(ref.title)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-extrabold px-1.5 py-0.5 mx-0.5 rounded text-[9px] select-none align-baseline border border-solid border-indigo-300/50 no-underline cursor-pointer transition-colors shadow-sm"
-                  title={`[Ref ${num}] ${ref.title} (${ref.author}, ${ref.year})`}
-                >
-                  [{num}]
-                </a>
-              );
-            }
-          }
-          return part;
-        })}
-      </p>
-    );
+    return <MarkdownRenderer content={text} journals={journals} />;
   };
 
   const handleSendChatMessage = async (e: React.FormEvent) => {
@@ -602,7 +673,7 @@ export default function App() {
     if (!assignmentFile || submitting) return;
 
     setSubmitting(true);
-    setUploadProgress('Sedang menilai tugas Anda menggunakan AI...');
+    setUploadProgress('Sedang menilai tugas & menyiapkan ruang obrolan Guru AI...');
     try {
       const res = await fetch('/api/assignments', {
         method: 'POST',
@@ -613,21 +684,59 @@ export default function App() {
         body: JSON.stringify({
           filename: assignmentFile.filename,
           fileType: assignmentFile.type,
-          fileData: assignmentFile.data
+          fileData: assignmentFile.data,
+          userNote: assignmentUserNote
         })
       });
       const newAsg = await res.json();
       if (res.ok) {
         setAssignments(prev => [newAsg, ...prev]);
         setAssignmentFile(null);
+        setAssignmentUserNote('');
         setShowNewAssignmentModal(false);
         setUploadProgress('');
+        setActiveTab('assignment');
+        setSelectedAssignment(newAsg);
       }
     } catch (err) {
       console.error("Error submitting assignment:", err);
       setUploadProgress('Gagal mengirimkan tugas. Silakan coba lagi.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSendAssignmentChatMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedAssignment || (!asgChatInput.trim() && !asgChatAttachment) || asgChatLoading) return;
+
+    const userMsgText = asgChatInput;
+    const currentAttachment = asgChatAttachment;
+    setAsgChatInput('');
+    setAsgChatAttachment(null);
+    setAsgChatLoading(true);
+
+    try {
+      const res = await fetch(`/api/assignments/${selectedAssignment.id}/chat`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': googleUser?.uid || 'guest'
+        },
+        body: JSON.stringify({ 
+          message: userMsgText,
+          attachment: currentAttachment
+        })
+      });
+      const updatedAsg = await res.json();
+      if (res.ok) {
+        setAssignments(prev => prev.map(a => a.id === updatedAsg.id ? updatedAsg : a));
+        setSelectedAssignment(updatedAsg);
+      }
+    } catch (err) {
+      console.error("Error sending assignment chat message:", err);
+    } finally {
+      setAsgChatLoading(false);
     }
   };
 
@@ -677,19 +786,6 @@ export default function App() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const applyPresetExploration = (preset: typeof DEMO_EXPLORATIONS[0]) => {
-    setExplorePhoto(preset.image);
-    setExploreDesc(preset.desc);
-  };
-
-  const applyPresetAssignment = (preset: typeof DEMO_ASSIGNMENTS[0]) => {
-    setAssignmentFile({
-      filename: preset.filename,
-      type: preset.type,
-      data: preset.image
-    });
   };
 
   return (
@@ -777,6 +873,7 @@ export default function App() {
               { id: 'assignment', label: 'Koreksi Berkas', icon: CheckSquare },
               { id: 'essay', label: 'Esai Harian', icon: BookOpen },
               { id: 'weekly', label: 'Rapor Belajar', icon: Calendar },
+              { id: 'profile', label: 'Profil Saya', icon: UserIcon, badge: (!userProfile || !userProfile.schoolName || !userProfile.grade || !userProfile.favoriteSubject) },
             ].map((tab) => {
               const TabIcon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -785,14 +882,24 @@ export default function App() {
                   key={tab.id}
                   onClick={() => { setActiveTab(tab.id as any); setSelectedExploration(null); }}
                   title={tab.label}
-                  className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'} rounded-xl text-xs font-bold transition-all cursor-pointer border border-solid ${
+                  className={`w-full flex items-center justify-between ${isSidebarCollapsed ? 'p-3' : 'px-4 py-3'} rounded-xl text-xs font-bold transition-all cursor-pointer border border-solid ${
                     isActive 
                       ? 'bg-indigo-50/70 text-indigo-700 border-indigo-150/40 shadow-xs' 
                       : 'text-slate-400 hover:bg-slate-100/70 hover:text-slate-800 bg-transparent border-transparent'
                   }`}
                 >
-                  <TabIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-650' : 'text-slate-400'}`} />
-                  {!isSidebarCollapsed && <span className="tracking-wide font-display">{tab.label}</span>}
+                  <div className="flex items-center gap-3">
+                    <TabIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-650' : 'text-slate-400'}`} />
+                    {!isSidebarCollapsed && <span className="tracking-wide font-display">{tab.label}</span>}
+                  </div>
+                  {!isSidebarCollapsed && tab.badge && (
+                    <span className="bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse shrink-0">
+                      Lengkapi
+                    </span>
+                  )}
+                  {isSidebarCollapsed && tab.badge && (
+                    <span className="w-2 h-2 bg-amber-500 rounded-full shrink-0" />
+                  )}
                 </button>
               );
             })}
@@ -896,6 +1003,7 @@ export default function App() {
           { id: 'assignment', label: 'Koreksi', icon: CheckSquare },
           { id: 'essay', label: 'Esai', icon: BookOpen },
           { id: 'weekly', label: 'Rapor', icon: Calendar },
+          { id: 'profile', label: 'Profil', icon: UserIcon, badge: (!userProfile || !userProfile.schoolName || !userProfile.grade || !userProfile.favoriteSubject) },
         ].map((tab) => {
           const TabIcon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -903,11 +1011,16 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id as any); setSelectedExploration(null); }}
-              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer border-0 bg-transparent ${
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all cursor-pointer border-0 bg-transparent relative ${
                 isActive ? 'text-indigo-650 scale-105 animate-pulse' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              <TabIcon className="w-5 h-5" />
+              <div className="relative">
+                <TabIcon className="w-5 h-5" />
+                {tab.badge && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white animate-bounce" />
+                )}
+              </div>
               <span className="text-[10px] font-bold mt-0.5 font-display">{tab.label}</span>
             </button>
           );
@@ -999,6 +1112,19 @@ export default function App() {
                     </div>
 
                     <div className="pt-3 space-y-2">
+                      <button
+                        onClick={() => { setActiveTab('profile'); setShowProfileMenu(false); setSelectedExploration(null); }}
+                        className="w-full flex items-center justify-between bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border border-indigo-100"
+                      >
+                        <div className="flex items-center gap-2">
+                          <UserIcon className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Profil & Level Belajar</span>
+                        </div>
+                        {(!userProfile || !userProfile.schoolName || !userProfile.grade || !userProfile.favoriteSubject) && (
+                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping" title="Perlu dilengkapi" />
+                        )}
+                      </button>
+
                       {googleUser ? (
                         <button
                           onClick={handleGoogleLogout}
@@ -1021,6 +1147,30 @@ export default function App() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* WARNING BANNER FOR INCOMPLETE PROFILE */}
+        {(!userProfile || !userProfile.schoolName?.trim() || !userProfile.grade?.trim() || !userProfile.favoriteSubject?.trim()) && activeTab !== 'profile' && !selectedExploration && (
+          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-sans shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 text-amber-600 rounded-xl shrink-0 mt-0.5 sm:mt-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600 animate-bounce" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 font-display">Data Profil Belajar Belum Lengkap!</h4>
+                <p className="text-xs text-slate-600 leading-relaxed mt-0.5 font-sans">
+                  Lengkapi <strong>Nama Sekolah</strong>, <strong>Kelas</strong>, dan <strong>Pelajaran Favorit</strong> agar AI PintarAI dapat menyesuaikan tingkat kesulitan soal & materi belajar Anda.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setActiveTab('profile'); setSelectedExploration(null); }}
+              className="shrink-0 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer border-0 flex items-center gap-1.5 font-display"
+            >
+              <span>Lengkapi Profil</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
@@ -1462,60 +1612,58 @@ export default function App() {
 
                           <div className="space-y-3.5">
                             
-                            {/* Card 1: Botani */}
+                            {/* Card 1: Sains Ekosistem */}
                             <div 
                               onClick={() => {
-                                setExploreDesc("Saya mengamati struktur tulang daun sirsak di kebun samping rumah.");
-                                setExplorePhoto(DEMO_EXPLORATIONS[0].image);
-                                setShowNewExploreModal(true);
+                                applyPresetAssignment(DEMO_ASSIGNMENTS[0], "Tolong periksa bagian produsen utama dan dekomposer pada lembar ekosistem ini.");
+                                setShowNewAssignmentModal(true);
                               }}
                               className="bg-gradient-to-r from-pink-50/50 to-pink-100/30 hover:from-pink-100/50 hover:to-pink-100/70 border border-pink-100/20 rounded-2xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs"
                             >
                               <div className="space-y-1">
-                                <span className="text-[8px] bg-pink-100/60 text-pink-650 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider font-mono">Sains Botani</span>
-                                <h4 className="text-xs font-bold text-slate-700 font-display group-hover:text-pink-900">Struktur Tulang Daun</h4>
-                                <p className="text-[10px] text-slate-400 leading-none">Amati susunan klorofil & fotosintesis</p>
+                                <span className="text-[8px] bg-pink-100/60 text-pink-650 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider font-mono">Sains Biologi</span>
+                                <h4 className="text-xs font-bold text-slate-700 font-display group-hover:text-pink-900">Lembar Tugas Ekosistem</h4>
+                                <p className="text-[10px] text-slate-400 leading-none">Evaluasi rantai makanan & analisis AI</p>
                               </div>
                               <div className="bg-white/90 border border-solid border-slate-100 text-slate-500 rounded-full px-3 py-1.5 text-[9.5px] font-bold group-hover:bg-pink-50 group-hover:text-pink-700 transition-all shadow-xs shrink-0">
-                                Mulai →
+                                Ajukan & Chat →
                               </div>
                             </div>
 
-                            {/* Card 2: Zoologi */}
+                            {/* Card 2: Matematika Aljabar */}
                             <div 
                               onClick={() => {
-                                setExploreDesc("Melihat gerombolan koloni semut merah menggotong butiran gula di sela semen trotoar.");
-                                setExplorePhoto(DEMO_EXPLORATIONS[1].image);
-                                setShowNewExploreModal(true);
+                                applyPresetAssignment(DEMO_ASSIGNMENTS[1], "Tolong periksa langkah penyelesaian sistem persamaan linear aljabar ini.");
+                                setShowNewAssignmentModal(true);
                               }}
                               className="bg-gradient-to-r from-indigo-50/50 to-indigo-100/30 hover:from-indigo-100/50 hover:to-indigo-100/70 border border-indigo-100/20 rounded-2xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs"
                             >
                               <div className="space-y-1">
-                                <span className="text-[8px] bg-indigo-100/60 text-indigo-650 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider font-mono">Sains Hewan</span>
-                                <h4 className="text-xs font-bold text-slate-700 font-display group-hover:text-indigo-900">Perilaku Semut Merah</h4>
-                                <p className="text-[10px] text-slate-400 leading-none">Sistem sosial & gotong royong koloni</p>
+                                <span className="text-[8px] bg-indigo-100/60 text-indigo-650 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider font-mono">Matematika</span>
+                                <h4 className="text-xs font-bold text-slate-700 font-display group-hover:text-indigo-900">Latihan Soal Aljabar</h4>
+                                <p className="text-[10px] text-slate-400 leading-none">Verifikasi rumus & koreksi angka</p>
                               </div>
                               <div className="bg-white/90 border border-solid border-slate-100 text-slate-500 rounded-full px-3 py-1.5 text-[9.5px] font-bold group-hover:bg-indigo-50 group-hover:text-indigo-700 transition-all shadow-xs shrink-0">
-                                Mulai →
+                                Ajukan & Chat →
                               </div>
                             </div>
 
-                            {/* Card 3: Fisika */}
+                            {/* Card 3: Unggah Berkas Bebas */}
                             <div 
                               onClick={() => {
-                                setExploreDesc("Pantulan elastis bola tenis lapangan di lantai garasi yang mengalami perlambatan.");
-                                setExplorePhoto(""); // Let user know they can start empty
-                                setShowNewExploreModal(true);
+                                setAssignmentFile(null);
+                                setAssignmentUserNote('');
+                                setShowNewAssignmentModal(true);
                               }}
                               className="bg-gradient-to-r from-amber-50/50 to-amber-100/30 hover:from-amber-100/50 hover:to-amber-100/70 border border-amber-100/20 rounded-2xl p-4 flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs"
                             >
                               <div className="space-y-1">
-                                <span className="text-[8px] bg-amber-100/60 text-amber-650 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider font-mono">Fisika Dinamis</span>
-                                <h4 className="text-xs font-bold text-slate-700 font-display group-hover:text-amber-900">Gaya Pantul Gravitasi</h4>
-                                <p className="text-[10px] text-slate-400 leading-none">Hitung percepatan gravitasi bumi</p>
+                                <span className="text-[8px] bg-amber-100/60 text-amber-650 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider font-mono">Kustom Unggah</span>
+                                <h4 className="text-xs font-bold text-slate-700 font-display group-hover:text-amber-900">Unggah Lembar Tugas Baru</h4>
+                                <p className="text-[10px] text-slate-400 leading-none">Kirim foto tugas Anda untuk AI review</p>
                               </div>
                               <div className="bg-white/90 border border-solid border-slate-100 text-slate-500 rounded-full px-3 py-1.5 text-[9.5px] font-bold group-hover:bg-amber-50 group-hover:text-amber-700 transition-all shadow-xs shrink-0">
-                                Mulai →
+                                Unggah →
                               </div>
                             </div>
 
@@ -1754,6 +1902,16 @@ export default function App() {
                             <div className="bg-slate-50/40 p-4 rounded-xl border border-solid border-slate-100/70">
                               <MarkdownRenderer content={asg.review || ''} />
                             </div>
+
+                            {/* Open Chat Room button */}
+                            <button
+                              onClick={() => setSelectedAssignment(asg)}
+                              className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-indigo-600/20 transition-all cursor-pointer border-0 active:scale-98"
+                            >
+                              <MessageSquare className="w-4 h-4 text-indigo-200" />
+                              <span>Buka Obrolan & Diskusi Tugas ({asg.chatHistory?.length || 0} Pesan)</span>
+                              <ChevronRight className="w-4 h-4 opacity-80" />
+                            </button>
 
                             {/* Print to Google docs backup button */}
                             <div className="border-t border-solid border-slate-100 pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full">
@@ -2117,6 +2275,316 @@ export default function App() {
               </div>
             )}
 
+            {/* TAB 5: PROFILE PAGE */}
+            {activeTab === 'profile' && (
+              <div className="space-y-6 max-w-4xl mx-auto w-full font-sans pb-10">
+                
+                {/* HEADER CARD */}
+                <div className="bg-gradient-to-br from-indigo-900 via-indigo-850 to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden border border-indigo-700/40">
+                  <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                  <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6">
+                    
+                    {/* Avatar */}
+                    <div className="relative shrink-0">
+                      {googleUser ? (
+                        <img 
+                          src={googleUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=250'} 
+                          alt="Avatar" 
+                          className="w-24 h-24 rounded-2xl object-cover border-4 border-indigo-400/30 shadow-md"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-rose-400 p-1 shadow-md">
+                          <div className="w-full h-full rounded-xl bg-slate-900 flex items-center justify-center text-2xl font-black text-white font-display">
+                            ST
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute -bottom-2 -right-2 bg-indigo-600 border-2 border-slate-900 p-1.5 rounded-xl shadow-xs">
+                        <GraduationCap className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+
+                    {/* User Info & Status */}
+                    <div className="flex-1 text-center md:text-left space-y-2">
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight font-display text-white">
+                          {googleUser ? (googleUser.displayName || 'Siswa PintarAI') : 'Siswa PintarAI'}
+                        </h2>
+                        {(!userProfile || !userProfile.schoolName?.trim() || !userProfile.grade?.trim() || !userProfile.favoriteSubject?.trim()) ? (
+                          <span className="inline-flex items-center gap-1 bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Data Profil Belum Lengkap
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold px-3 py-1 rounded-full">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Level Belajar AI Aktif
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-indigo-200/80 font-mono">
+                        {googleUser ? googleUser.email : 'Sesi Tamu • Belum terhubung ke Google'}
+                      </p>
+
+                      <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs">
+                        <div className="bg-indigo-950/60 border border-indigo-700/50 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+                          <Trophy className="w-4 h-4 text-rose-400" />
+                          <span className="font-bold font-display text-white">
+                            {explorations.length * 15 + assignments.length * 20 + (essayQuestion?.userAnswer ? 10 : 0)} XP
+                          </span>
+                        </div>
+                        <div className="bg-indigo-950/60 border border-indigo-700/50 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-amber-300" />
+                          <span className="font-bold font-display text-indigo-100">
+                            Level {Math.floor((explorations.length + assignments.length) / 3) + 1}
+                          </span>
+                        </div>
+                        {userProfile?.grade && (
+                          <div className="bg-indigo-950/60 border border-indigo-700/50 px-3.5 py-1.5 rounded-xl flex items-center gap-2 text-indigo-200">
+                            <School className="w-4 h-4 text-emerald-400" />
+                            <span className="font-bold">{userProfile.grade}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* FORM SECTION: DATA WAJIB DIISI */}
+                <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm space-y-6">
+                  
+                  <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900 font-display flex items-center gap-2">
+                        <BookMarked className="w-5 h-5 text-indigo-600" />
+                        <span>Kelengkapan Data Pembelajaran (Wajib)</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Data ini digunakan oleh sistem AI PintarAI untuk menyesuaikan tingkat kesulitan soal esai harian, tata bahasa koreksi tugas, dan kedalaman penjelasan tutorial Sains.
+                      </p>
+                    </div>
+                    {(!userProfile || !userProfile.schoolName?.trim() || !userProfile.grade?.trim() || !userProfile.favoriteSubject?.trim()) && (
+                      <span className="bg-amber-100 text-amber-700 font-bold text-[10px] px-2.5 py-1 rounded-full shrink-0">
+                        Wajib Dilengkapi
+                      </span>
+                    )}
+                  </div>
+
+                  {profileSavedSuccess && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3 text-emerald-800 text-xs font-bold animate-fadeIn">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span>Profil berhasil disimpan! Kurikulum dan tingkat kesulitan belajar Anda telah disesuaikan oleh AI.</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSaveProfile} className="space-y-6">
+                    
+                    {/* 1. NAMA SEKOLAH */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-800 font-display flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <School className="w-4 h-4 text-indigo-600" />
+                          <span>1. Nama Sekolah</span>
+                          <span className="text-rose-500 font-bold">*</span>
+                        </span>
+                        {profileSchoolName.trim() ? (
+                          <span className="text-[10px] text-emerald-600 font-bold">✓ Terisi</span>
+                        ) : (
+                          <span className="text-[10px] text-amber-600 font-bold">Wajib Diisi</span>
+                        )}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={profileSchoolName}
+                        onChange={(e) => setProfileSchoolName(e.target.value)}
+                        placeholder="Contoh: SMP Negeri 1 Jakarta / SMA 3 Bandung / SD IT Al-Azhar"
+                        className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3 text-xs font-medium text-slate-800 outline-none transition-all"
+                      />
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        <span className="text-[10px] text-slate-400 font-semibold my-auto mr-1">Rekomendasi Cepat:</span>
+                        {['SMPN 1 Jakarta', 'SMAN 3 Bandung', 'SD IT Mutiara', 'SMA Plus Negeri'].map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setProfileSchoolName(s)}
+                            className="text-[10px] bg-slate-100 hover:bg-indigo-50 hover:text-indigo-650 text-slate-600 font-semibold px-2.5 py-1 rounded-lg transition-all border-0 cursor-pointer"
+                          >
+                            + {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. KELAS / TINGKAT PENDIDIKAN */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-800 font-display flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <GraduationCap className="w-4 h-4 text-indigo-600" />
+                          <span>2. Kelas / Tingkat Pendidikan</span>
+                          <span className="text-rose-500 font-bold">*</span>
+                        </span>
+                        {profileGrade.trim() ? (
+                          <span className="text-[10px] text-emerald-600 font-bold">✓ Terisi</span>
+                        ) : (
+                          <span className="text-[10px] text-amber-600 font-bold">Wajib Diisi</span>
+                        )}
+                      </label>
+
+                      <select
+                        required
+                        value={profileGrade}
+                        onChange={(e) => setProfileGrade(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3 text-xs font-medium text-slate-800 outline-none transition-all cursor-pointer"
+                      >
+                        <option value="">-- Pilih Tingkat Kelas Anda --</option>
+                        <option value="SD Kelas 1-3 (Fase A/B)">SD Kelas 1 - 3 (Dasar awal)</option>
+                        <option value="SD Kelas 4-6 (Fase B/C)">SD Kelas 4 - 6 (Dasar lanjutan)</option>
+                        <option value="SMP Kelas 7 (Fase D)">SMP Kelas 7</option>
+                        <option value="SMP Kelas 8 (Fase D)">SMP Kelas 8</option>
+                        <option value="SMP Kelas 9 (Fase D)">SMP Kelas 9</option>
+                        <option value="SMA Kelas 10 (Fase E)">SMA / SMK Kelas 10</option>
+                        <option value="SMA Kelas 11 (Fase F)">SMA / SMK Kelas 11</option>
+                        <option value="SMA Kelas 12 (Fase F)">SMA / SMK Kelas 12</option>
+                        <option value="Perguruan Tinggi / Umum">Perguruan Tinggi / Umum</option>
+                      </select>
+
+                      {/* Quick Option Chips */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                        {[
+                          "SD Kelas 4-6 (Fase B/C)",
+                          "SMP Kelas 7 (Fase D)",
+                          "SMP Kelas 8 (Fase D)",
+                          "SMP Kelas 9 (Fase D)",
+                          "SMA Kelas 10 (Fase E)",
+                          "SMA Kelas 11 (Fase F)"
+                        ].map((g) => (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => setProfileGrade(g)}
+                            className={`text-[11px] font-bold p-2.5 rounded-xl border transition-all text-center cursor-pointer ${
+                              profileGrade === g 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
+                                : 'bg-slate-50 hover:bg-indigo-50 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {g.split(' (')[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 3. PELAJARAN FAVORIT */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-800 font-display flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                          <span>3. Pelajaran Favorit</span>
+                          <span className="text-rose-500 font-bold">*</span>
+                        </span>
+                        {profileFavoriteSubject.trim() ? (
+                          <span className="text-[10px] text-emerald-600 font-bold">✓ Terisi</span>
+                        ) : (
+                          <span className="text-[10px] text-amber-600 font-bold">Wajib Diisi</span>
+                        )}
+                      </label>
+
+                      <input
+                        type="text"
+                        required
+                        value={profileFavoriteSubject}
+                        onChange={(e) => setProfileFavoriteSubject(e.target.value)}
+                        placeholder="Contoh: Matematika, Fisika, Biologi, Sejarah, Bahasa Inggris"
+                        className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3 text-xs font-medium text-slate-800 outline-none transition-all"
+                      />
+
+                      {/* Quick Subject Select Chips */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {[
+                          "Matematika",
+                          "Sains & IPA",
+                          "Fisika",
+                          "Biologi",
+                          "Kimia",
+                          "Sejarah & IPS",
+                          "Bahasa Indonesia",
+                          "Bahasa Inggris",
+                          "Informatika & Coding"
+                        ].map((sub) => (
+                          <button
+                            key={sub}
+                            type="button"
+                            onClick={() => setProfileFavoriteSubject(sub)}
+                            className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                              profileFavoriteSubject === sub 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            ⭐ {sub}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* SUBMIT BUTTON */}
+                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        * Data Anda tersimpan aman dan digunakan untuk penyesuaian materi AI secara otomatis.
+                      </p>
+
+                      <button
+                        type="submit"
+                        disabled={isSavingProfile}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 px-6 rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer border-0 font-display disabled:opacity-50"
+                      >
+                        {isSavingProfile ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Menyimpan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Simpan Profil Belajar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                  </form>
+
+                </div>
+
+                {/* ACCOUNT ACTIONS CARD */}
+                <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                      <LogOut className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800 font-display">Sesi & Akun Siswa</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {googleUser ? `Terhubung sebagai ${googleUser.email}` : 'Sesi Tamu aktif saat ini'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogout}
+                    className="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-3 px-5 rounded-2xl transition-all cursor-pointer border-0 flex items-center justify-center gap-2 font-display"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Keluar / Putus Sesi</span>
+                  </button>
+                </div>
+
+              </div>
+            )}
+
           </motion.div>
         </AnimatePresence>
       </main>
@@ -2167,21 +2635,36 @@ export default function App() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-505 font-sans">Unggah Foto Objek:</label>
-                  <div className="border border-dashed border-slate-300 rounded-xl p-5 text-center hover:bg-slate-50 relative flex flex-col justify-center items-center h-28 cursor-pointer shadow-sm">
-                    {explorePhoto ? (
-                      <div className="relative">
-                        <img src={explorePhoto} alt="preview" className="max-h-[80px] rounded" referrerPolicy="no-referrer" />
-                        <button type="button" onClick={() => setExplorePhoto('')} className="absolute -top-1.5 -right-1.5 bg-[#EF4444] text-white rounded-full h-4 w-4 text-[8px] flex items-center justify-center font-bold border-0 cursor-pointer">X</button>
+                  <label className="text-xs font-bold text-slate-700 font-sans">Unggah Foto Objek Eksplorasi:</label>
+                  {explorePhoto ? (
+                    <div className="relative bg-slate-900 rounded-2xl p-3 border border-slate-800 flex flex-col items-center justify-center shadow-md">
+                      <div className="relative group cursor-pointer" onClick={() => setPreviewImageUrl(explorePhoto)}>
+                        <img 
+                          src={explorePhoto} 
+                          alt="preview" 
+                          className="max-h-36 max-w-full object-contain rounded-xl shadow-xs border border-white/10 group-hover:opacity-90 transition-all" 
+                          referrerPolicy="no-referrer" 
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all rounded-xl flex items-center justify-center text-white text-xs font-bold gap-1 font-sans">
+                          <Eye className="w-4 h-4" /> Lihat Ukuran Penuh
+                        </div>
                       </div>
-                    ) : (
-                      <>
-                        <Camera className="w-6 h-6 text-slate-400" />
-                        <span className="text-[10px] text-slate-400 mt-1 font-medium font-sans">Silakan seret foto di sini atau pilih preset</span>
-                        <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, 'explore')} className="opacity-0 absolute inset-0 cursor-pointer" />
-                      </>
-                    )}
-                  </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setExplorePhoto('')} 
+                        className="mt-2 text-red-400 hover:text-red-300 text-[11px] font-bold flex items-center gap-1 border-0 bg-transparent cursor-pointer font-sans"
+                      >
+                        <X className="w-3.5 h-3.5" /> Hapus / Ganti Foto
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-slate-300 rounded-xl p-5 text-center hover:bg-slate-50 relative flex flex-col justify-center items-center h-28 cursor-pointer shadow-xs transition-all">
+                      <Camera className="w-7 h-7 text-indigo-600 mb-1" />
+                      <span className="text-xs font-bold text-slate-700 font-sans">Silakan seret foto di sini atau pilih preset</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5 font-sans">Mendukung PNG, JPG, JPEG, WEBP</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, 'explore')} className="opacity-0 absolute inset-0 cursor-pointer" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1 font-sans">
@@ -2220,12 +2703,15 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-solid border-slate-100/30 flex flex-col max-h-[90vh]"
+              className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-solid border-slate-100/30 flex flex-col max-h-[90vh]"
             >
               <div className="p-5 border-b border-solid border-slate-100/70 bg-slate-50/50 flex items-center justify-between font-sans">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Upload Tugas Baru</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Uji jawaban tugas sains, esai biologi, matematika.</p>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-indigo-600" />
+                    <span>Ajukan Tugas Pintar & Mulai Obrolan</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Unggah foto tugas & diskusikan solusinya secara interaktif bersama AI.</p>
                 </div>
                 <button 
                   onClick={() => setShowNewAssignmentModal(false)}
@@ -2236,22 +2722,84 @@ export default function App() {
               </div>
 
               <form onSubmit={handleSubmitAssignment} className="p-5 space-y-4 overflow-y-auto font-sans flex-1">
-                <div className="space-y-1 font-sans">
-                  <label className="text-xs font-bold text-slate-505 font-sans">Pilih Berkas Tugas (Gambar/Foto):</label>
-                  <div className="border border-dashed border-slate-300 rounded-xl p-5 text-center hover:bg-slate-50 relative flex flex-col justify-center items-center h-28 cursor-pointer">
-                    {assignmentFile ? (
-                      <div className="space-y-1 flex flex-col items-center">
-                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-bold font-mono">{assignmentFile.filename}</span>
-                        <button type="button" onClick={() => setAssignmentFile(null)} className="text-[10px] text-red-600 font-bold underline cursor-pointer border-0 bg-transparent">Ganti Berkas</button>
-                      </div>
-                    ) : (
-                      <>
-                        <UploadCloud className="w-6 h-6 text-slate-400" />
-                        <span className="text-[10px] text-slate-400 mt-1 font-medium">Seret foto tugas Anda di sini</span>
-                        <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, 'assignment')} className="opacity-0 absolute inset-0 cursor-pointer text-xs" />
-                      </>
-                    )}
+                {/* Preset trial selection */}
+                <div className="space-y-1.5">
+                  <span className="text-[9.5px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1 font-mono">
+                    <Star className="w-3.5 h-3.5 fill-indigo-200 text-indigo-500" /> Preset Tugas Trial Cepat
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {DEMO_ASSIGNMENTS.map((preset, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => applyPresetAssignment(preset, `Mohon evaluasi dan jelaskan langkah-langkah dalam ${preset.name}`)}
+                        className={`text-xs text-left p-2.5 rounded-xl border border-solid transition-all cursor-pointer font-sans flex items-center justify-between ${
+                          assignmentFile?.filename === preset.filename
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold'
+                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <span className="truncate pr-1 font-medium">{preset.name}</span>
+                        <span className="text-[8px] bg-indigo-600 text-white font-bold py-0.5 px-1.5 rounded shrink-0">Pasang</span>
+                      </button>
+                    ))}
                   </div>
+                </div>
+
+                <div className="space-y-1 font-sans">
+                  <label className="text-xs font-bold text-slate-700 font-sans">Unggah Foto / Berkas Lembar Tugas:</label>
+                  {assignmentFile ? (
+                    <div className="relative bg-slate-900 rounded-2xl p-3 border border-indigo-200/40 flex flex-col items-center justify-center shadow-md">
+                      {assignmentFile.data && (assignmentFile.data.startsWith('data:image') || assignmentFile.type.startsWith('image/') || assignmentFile.data.startsWith('data:')) ? (
+                        <div className="relative group cursor-pointer" onClick={() => setPreviewImageUrl(assignmentFile.data)}>
+                          <img 
+                            src={assignmentFile.data} 
+                            alt={assignmentFile.filename} 
+                            className="max-h-40 max-w-full object-contain rounded-xl shadow-xs border border-white/10 group-hover:opacity-90 transition-all"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all rounded-xl flex items-center justify-center text-white text-xs font-bold gap-1 font-sans">
+                            <Eye className="w-4 h-4" /> Lihat Ukuran Penuh
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-indigo-300 py-3 font-mono text-xs">
+                          <FileText className="w-5 h-5 text-indigo-400" />
+                          <span>{assignmentFile.filename}</span>
+                        </div>
+                      )}
+                      
+                      <div className="mt-2.5 flex items-center justify-between w-full px-2 pt-2 border-t border-slate-800 text-xs">
+                        <span className="text-slate-300 font-mono truncate max-w-[200px] font-bold text-[11px]">{assignmentFile.filename}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setAssignmentFile(null)} 
+                          className="text-red-400 hover:text-red-300 font-bold text-[11px] underline cursor-pointer border-0 bg-transparent flex items-center gap-1 font-sans"
+                        >
+                          <X className="w-3.5 h-3.5" /> Ganti Berkas
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-slate-300 rounded-xl p-5 text-center hover:bg-slate-50 relative flex flex-col justify-center items-center h-28 cursor-pointer transition-all shadow-xs">
+                      <UploadCloud className="w-7 h-7 text-indigo-600 mb-1" />
+                      <span className="text-xs font-bold text-slate-700 font-sans">Klik atau seret foto lembar tugas Anda ke sini</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5 font-sans">Mendukung Format Foto PNG, JPG, JPEG, WEBP</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, 'assignment')} className="opacity-0 absolute inset-0 cursor-pointer text-xs" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Optional Note / Question text area */}
+                <div className="space-y-1 font-sans">
+                  <label className="text-xs font-bold text-slate-700 font-sans">Catatan / Pertanyaan Awal untuk AI (Opsional):</label>
+                  <textarea
+                    rows={2}
+                    value={assignmentUserNote}
+                    onChange={(e) => setAssignmentUserNote(e.target.value)}
+                    placeholder="Contoh: Tolong periksa nomor 3 dan jelaskan jika ada kesalahan dalam langkah hitungan saya."
+                    className="w-full bg-slate-50 border border-slate-200 text-xs p-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-300 font-sans shadow-inner"
+                  />
                 </div>
 
                 {uploadProgress && (
@@ -2261,12 +2809,210 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={submitting || !assignmentFile}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white font-bold text-xs py-3 rounded-xl transition-all active:scale-95 cursor-pointer shadow-lg flex items-center justify-center gap-1.5 border-0"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white font-bold text-xs py-3.5 rounded-xl transition-all active:scale-95 cursor-pointer shadow-lg flex items-center justify-center gap-2 border-0"
                 >
-                  {submitting ? <RefreshCw className="w-4 h-4 animate-spin text-white" /> : null}
-                  <span>{submitting ? 'Sedang Mengevaluasi...' : 'Kirim & Dapatkan Penilaian AI'}</span>
+                  {submitting ? <RefreshCw className="w-4 h-4 animate-spin text-white" /> : <MessageSquare className="w-4 h-4" />}
+                  <span>{submitting ? 'Sedang Diproses Guru AI...' : 'Ajukan & Mulai Obrolan'}</span>
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ====================================================
+          SELECTED ASSIGNMENT CHAT ROOM / MODAL
+          ==================================================== */}
+      <AnimatePresence>
+        {selectedAssignment && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-6 font-sans">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-4xl h-[90vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col"
+            >
+              {/* Header */}
+              <div className="bg-slate-900 text-white p-4.5 sm:p-5 flex items-center justify-between shrink-0 shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-400/30">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2">
+                      <span>{selectedAssignment.filename}</span>
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-mono">
+                        Skor: {selectedAssignment.score}/100
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Ruang Obrolan & Bimbingan AI untuk Lembar Tugas Ini</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedAssignment(null)}
+                  className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer border-0"
+                >
+                  Tutup Obrolan X
+                </button>
+              </div>
+
+              {/* Messages Feed */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-slate-50/50">
+                {/* Original Submission Review Card */}
+                <div className="bg-white rounded-2xl border border-indigo-100/70 p-4.5 sm:p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <span className="text-xs font-bold text-indigo-600 flex items-center gap-1.5 font-mono">
+                      <CheckSquare className="w-4 h-4" /> Evaluasi & Hasil Koreksi Awal Guru AI
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {new Date(selectedAssignment.uploadedAt).toLocaleDateString('id-ID', { dateStyle: 'medium' })}
+                    </span>
+                  </div>
+
+                  {/* Image Preview inside Chat Room Review */}
+                  {selectedAssignment.fileData && (
+                    <div className="bg-slate-900 rounded-2xl p-3 flex flex-col sm:flex-row items-center gap-4 border border-slate-800">
+                      <div 
+                        className="relative group cursor-pointer shrink-0" 
+                        onClick={() => setPreviewImageUrl(selectedAssignment.fileData)}
+                      >
+                        <img 
+                          src={selectedAssignment.fileData} 
+                          alt={selectedAssignment.filename} 
+                          className="h-28 sm:h-32 rounded-xl object-contain bg-black/40 p-1 border border-white/10 group-hover:opacity-90 transition-all"
+                          referrerPolicy="no-referrer" 
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all rounded-xl flex items-center justify-center text-white text-xs font-bold gap-1 font-sans">
+                          <Eye className="w-4 h-4" /> Lihat
+                        </div>
+                      </div>
+                      <div className="flex-1 text-white space-y-1 text-center sm:text-left">
+                        <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded font-mono uppercase font-bold">
+                          Foto Berkas Lembar Tugas
+                        </span>
+                        <h5 className="text-xs sm:text-sm font-extrabold text-slate-100">{selectedAssignment.filename}</h5>
+                        <p className="text-[10.5px] text-slate-400 leading-snug">
+                          Klik gambar untuk memperbesar foto tugas dalam resolusi penuh.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedAssignment.userNote && (
+                    <div className="bg-indigo-50/40 p-3 rounded-xl border border-indigo-100 text-xs text-indigo-950 font-sans">
+                      <span className="font-extrabold text-indigo-700 block mb-0.5">Catatan/Pertanyaan Murid:</span>
+                      "{selectedAssignment.userNote}"
+                    </div>
+                  )}
+
+                  <div className="text-xs text-slate-700 leading-relaxed font-sans">
+                    <MarkdownRenderer content={selectedAssignment.review} />
+                  </div>
+                </div>
+
+                {/* Conversation Thread */}
+                {selectedAssignment.chatHistory?.map((msg, index) => {
+                  const isUser = msg.sender === 'user';
+                  return (
+                    <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-2xl p-4 shadow-xs text-xs space-y-2.5 ${
+                        isUser 
+                          ? 'bg-indigo-600 text-white rounded-br-xs font-sans'
+                          : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs font-sans'
+                      }`}>
+                        <div className="flex justify-between items-center text-[10px] opacity-75 font-mono border-b border-white/10 pb-1">
+                          <span className="font-bold">{isUser ? 'Saya (Siswa)' : 'Guru AI Cerdas'}</span>
+                          <span>{new Date(msg.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+
+                        {/* Text content */}
+                        {isUser ? (
+                          <p className="whitespace-pre-line leading-relaxed">{msg.text}</p>
+                        ) : (
+                          <div className="leading-relaxed">
+                            {renderMessageWithCitations(msg.text, msg.journals)}
+                          </div>
+                        )}
+
+                        {/* Scientific SVG Illustrations */}
+                        {msg.illustrations && msg.illustrations.length > 0 && (
+                          <div className="mt-3 space-y-2 pt-2 border-t border-slate-100">
+                            {msg.illustrations.map((svgStr, svgIdx) => (
+                              <div key={svgIdx} className="bg-slate-900 rounded-xl p-3 border border-slate-800 overflow-x-auto text-center">
+                                <span className="text-[9px] text-indigo-400 font-mono font-bold uppercase tracking-wider block mb-1">
+                                  Diagram & Visualisasi Konsep #{svgIdx + 1}
+                                </span>
+                                <div 
+                                  className="inline-block max-w-full [&_svg]:max-w-full [&_svg]:h-auto"
+                                  dangerouslySetInnerHTML={{ __html: svgStr }} 
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Attachment preview if user uploaded file in chat */}
+                        {msg.attachment && (
+                          <div className="mt-2 bg-indigo-950/20 p-2 rounded-lg border border-indigo-200/20 text-[10px]">
+                            <span className="font-mono font-bold text-indigo-200">Lampiran: {msg.attachment.filename}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Chat Input Footer */}
+              <form onSubmit={handleSendAssignmentChatMessage} className="p-3.5 sm:p-4 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0">
+                <input 
+                  type="text"
+                  value={asgChatInput}
+                  onChange={(e) => setAsgChatInput(e.target.value)}
+                  placeholder="Tanyakan penjelasan lanjutan, rumus, atau soal yang belum dimengerti..."
+                  className="flex-1 bg-slate-100 text-xs py-3 px-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-600 font-sans"
+                  disabled={asgChatLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={asgChatLoading || (!asgChatInput.trim() && !asgChatAttachment)}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white font-bold px-4 py-3 rounded-xl transition-all cursor-pointer border-0 flex items-center gap-1.5 text-xs shrink-0 shadow-md"
+                >
+                  {asgChatLoading ? <RefreshCw className="w-4 h-4 animate-spin text-white" /> : <Send className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Kirim</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Full-screen Image Lightbox Modal */}
+      <AnimatePresence>
+        {previewImageUrl && (
+          <div 
+            className="fixed inset-0 bg-black/85 backdrop-blur-md z-[100] flex items-center justify-center p-4 font-sans"
+            onClick={() => setPreviewImageUrl(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center p-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setPreviewImageUrl(null)}
+                className="absolute -top-12 right-0 text-white bg-slate-800/90 hover:bg-slate-700 p-2 rounded-xl cursor-pointer transition-all border border-slate-700 flex items-center gap-1.5 text-xs font-bold px-3 shadow-lg"
+              >
+                <X className="w-4 h-4" /> Tutup Pratinjau
+              </button>
+              <img 
+                src={previewImageUrl} 
+                alt="Preview Gambar Ukuran Penuh" 
+                className="max-w-full max-h-[82vh] object-contain rounded-2xl shadow-2xl border border-white/20 bg-slate-900/60"
+                referrerPolicy="no-referrer"
+              />
             </motion.div>
           </div>
         )}

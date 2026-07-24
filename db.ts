@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import pg from 'pg';
-import { ExploreReport, Assignment, DailyQuestion, WeeklyReview } from './src/types';
+import { ExploreReport, Assignment, DailyQuestion, WeeklyReview, UserProfile } from './src/types';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
@@ -15,6 +15,7 @@ const FILES = {
   assignments: path.join(DATA_DIR, 'assignments.json'),
   daily_questions: path.join(DATA_DIR, 'daily_questions.json'),
   weekly_reviews: path.join(DATA_DIR, 'weekly_reviews.json'),
+  user_profiles: path.join(DATA_DIR, 'user_profiles.json'),
 };
 
 // Helper: Ensure JSON file exists with empty array
@@ -196,8 +197,10 @@ export async function initDb() {
         filename TEXT NOT NULL,
         file_type TEXT NOT NULL,
         file_data TEXT NOT NULL,
+        user_note TEXT,
         score INTEGER,
         review TEXT,
+        chat_history JSONB,
         uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         user_id TEXT DEFAULT 'guest'
       );
@@ -231,10 +234,24 @@ export async function initDb() {
       );
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        user_id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT,
+        school_name TEXT NOT NULL DEFAULT '',
+        grade TEXT NOT NULL DEFAULT '',
+        favorite_subject TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Schema upgrades for existing production DBs
     console.log('[Neon DB] Running automatic schema upgrades for existing tables...');
     await pool.query(`ALTER TABLE explorations ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
     await pool.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
+    await pool.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS user_note TEXT;`);
+    await pool.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS chat_history JSONB;`);
     await pool.query(`ALTER TABLE daily_questions ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
     await pool.query(`ALTER TABLE weekly_reviews ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
 
@@ -377,26 +394,35 @@ export const db = {
         filename: row.filename,
         fileType: row.file_type,
         fileData: row.file_data,
+        userNote: row.user_note || undefined,
         score: row.score,
         review: row.review,
+        chatHistory: typeof row.chat_history === 'string' ? JSON.parse(row.chat_history) : (row.chat_history || []),
         uploadedAt: row.uploaded_at instanceof Date ? row.uploaded_at.toISOString() : row.uploaded_at
       }));
     }
     const assignments = readFile<any[]>(FILES.assignments);
-    return assignments.filter((a) => a.userId === userId || (!a.userId && userId === 'guest'));
+    return assignments
+      .filter((a) => a.userId === userId || (!a.userId && userId === 'guest'))
+      .map((a) => ({
+        ...a,
+        chatHistory: a.chatHistory || []
+      }));
   },
 
   async saveAssignment(assignment: Assignment, userId: string = 'guest'): Promise<Assignment> {
     if (pool) {
       await pool.query(`
-        INSERT INTO assignments (id, filename, file_type, file_data, score, review, uploaded_at, user_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO assignments (id, filename, file_type, file_data, user_note, score, review, chat_history, uploaded_at, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (id) DO UPDATE SET
           filename = EXCLUDED.filename,
           file_type = EXCLUDED.file_type,
           file_data = EXCLUDED.file_data,
+          user_note = EXCLUDED.user_note,
           score = EXCLUDED.score,
           review = EXCLUDED.review,
+          chat_history = EXCLUDED.chat_history,
           uploaded_at = EXCLUDED.uploaded_at,
           user_id = EXCLUDED.user_id
       `, [
@@ -404,8 +430,10 @@ export const db = {
         assignment.filename,
         assignment.fileType,
         assignment.fileData,
+        assignment.userNote || null,
         assignment.score,
         assignment.review,
+        JSON.stringify(assignment.chatHistory || []),
         assignment.uploadedAt,
         userId
       ]);
@@ -598,5 +626,80 @@ export const db = {
     }
     writeFile(FILES.weekly_reviews, reviews);
     return review;
+  },
+
+  // User Profile
+  async getUserProfile(userId: string = 'guest'): Promise<UserProfile | null> {
+    if (pool) {
+      try {
+        const res = await pool.query('SELECT * FROM user_profiles WHERE user_id = $1', [userId]);
+        if (res.rows.length > 0) {
+          const row = res.rows[0];
+          return {
+            userId: row.user_id,
+            name: row.name || undefined,
+            email: row.email || undefined,
+            schoolName: row.school_name || '',
+            grade: row.grade || '',
+            favoriteSubject: row.favorite_subject || '',
+            updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at
+          };
+        }
+      } catch (err: any) {
+        console.error('[DB Error] getUserProfile PG query failed:', err.message);
+      }
+    }
+    try {
+      const profiles = readFile<UserProfile[]>(FILES.user_profiles);
+      return profiles.find((p) => p.userId === userId) || null;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  async saveUserProfile(profile: UserProfile): Promise<UserProfile> {
+    const updatedAt = new Date().toISOString();
+    const updatedProfile = { ...profile, updatedAt };
+
+    if (pool) {
+      try {
+        await pool.query(`
+          INSERT INTO user_profiles (user_id, name, email, school_name, grade, favorite_subject, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (user_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            email = EXCLUDED.email,
+            school_name = EXCLUDED.school_name,
+            grade = EXCLUDED.grade,
+            favorite_subject = EXCLUDED.favorite_subject,
+            updated_at = EXCLUDED.updated_at
+        `, [
+          updatedProfile.userId,
+          updatedProfile.name || null,
+          updatedProfile.email || null,
+          updatedProfile.schoolName || '',
+          updatedProfile.grade || '',
+          updatedProfile.favoriteSubject || '',
+          updatedAt
+        ]);
+        return updatedProfile;
+      } catch (err: any) {
+        console.error('[DB Error] saveUserProfile PG query failed:', err.message);
+      }
+    }
+    try {
+      const profiles = readFile<UserProfile[]>(FILES.user_profiles);
+      const index = profiles.findIndex((p) => p.userId === updatedProfile.userId);
+      if (index >= 0) {
+        profiles[index] = updatedProfile;
+      } else {
+        profiles.push(updatedProfile);
+      }
+      writeFile(FILES.user_profiles, profiles);
+    } catch (err) {
+      console.error('[JSON Error] Failed writing user profile to disk:', err);
+    }
+    return updatedProfile;
   }
 };
+
