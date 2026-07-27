@@ -3,9 +3,13 @@
  */
 
 export const getApiBaseUrl = (): string => {
-  const envUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? (window as any).VITE_API_URL : '');
+  const metaEnv = (import.meta as any).env;
+  const envUrl = metaEnv?.VITE_API_URL || (typeof window !== 'undefined' ? (window as any).VITE_API_URL : '');
   if (envUrl && typeof envUrl === 'string') {
     return envUrl.replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
+    return 'https://pintar-grata.onrender.com';
   }
   return '';
 };

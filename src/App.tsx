@@ -48,6 +48,7 @@ import {
   logout as googleLogout, 
 } from './auth';
 import { createGoogleDocFromStudy } from './googleDocsService';
+import { getApiUrl } from './apiClient';
 import type { User as FirebaseUser } from 'firebase/auth';
 
 // Predefined mock assets for single-click trial templates
@@ -380,7 +381,8 @@ export default function App() {
 
   const safeFetchJson = async <T,>(url: string, options?: RequestInit): Promise<T | null> => {
     try {
-      const res = await fetch(url, options);
+      const fullUrl = getApiUrl(url);
+      const res = await fetch(fullUrl, options);
       if (!res.ok) return null;
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) return null;
@@ -458,7 +460,7 @@ export default function App() {
     };
 
     try {
-      const res = await fetch('/api/profile', {
+      const res = await fetch(getApiUrl('/api/profile'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -620,7 +622,7 @@ export default function App() {
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/explorations', {
+      const res = await fetch(getApiUrl('/api/explorations'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -716,7 +718,7 @@ export default function App() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`/api/explorations/${selectedExploration.id}/chat`, {
+      const res = await fetch(getApiUrl(`/api/explorations/${selectedExploration.id}/chat`), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -777,7 +779,7 @@ export default function App() {
     setSubmitting(true);
     setUploadProgress('Sedang menilai tugas & menyiapkan ruang obrolan Guru AI...');
     try {
-      const res = await fetch('/api/assignments', {
+      const res = await fetch(getApiUrl('/api/assignments'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -844,7 +846,7 @@ export default function App() {
     setAsgChatLoading(true);
 
     try {
-      const res = await fetch(`/api/assignments/${selectedAssignment.id}/chat`, {
+      const res = await fetch(getApiUrl(`/api/assignments/${selectedAssignment.id}/chat`), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -896,7 +898,7 @@ export default function App() {
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/questions/today/answer', {
+      const res = await fetch(getApiUrl('/api/questions/today/answer'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -931,7 +933,7 @@ export default function App() {
   const handleGenerateWeeklyReview = async () => {
     setSubmitting(true);
     try {
-      const res = await fetch('/api/reviews/generate', {
+      const res = await fetch(getApiUrl('/api/reviews/generate'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
