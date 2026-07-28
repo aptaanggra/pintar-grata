@@ -1711,10 +1711,19 @@ export default function App() {
                           </div>
 
                           <div className="flex justify-between items-center mt-5">
-                            {/* Growth rate card in soft pink tint */}
+                            {/* Growth rate card */}
                             <div className="bg-[#FFF0F3]/50 border border-pink-100/20 rounded-2xl p-2.5 px-4 flex items-center gap-3">
-                              <span className="text-2xl font-black text-rose-450 font-display">+24%</span>
-                              <span className="text-[9.5px] text-rose-400 font-bold leading-tight uppercase tracking-wider font-sans">Peningkatan Belajar<br />Minggu Ini</span>
+                              {explorations.length === 0 && assignments.length === 0 && !essayQuestion?.userAnswer ? (
+                                <>
+                                  <span className="text-2xl font-black text-slate-400 font-display">0</span>
+                                  <span className="text-[9.5px] text-slate-500 font-bold leading-tight uppercase tracking-wider font-sans">Sesi Belajar<br />Aktif</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-2xl font-black text-rose-450 font-display">+{Math.min(100, (explorations.length + assignments.length + (essayQuestion?.userAnswer ? 1 : 0)) * 25)}%</span>
+                                  <span className="text-[9.5px] text-rose-400 font-bold leading-tight uppercase tracking-wider font-sans">Peningkatan Belajar<br />Sesi Ini</span>
+                                </>
+                              )}
                             </div>
 
                              {/* Interval buttons switcher */}
@@ -1741,73 +1750,83 @@ export default function App() {
 
                         {/* BEAUTIFUL SPLINE CHART SVG */}
                         <div className="w-full h-44 mt-6 relative select-none">
-                          <svg viewBox="0 0 700 200" className="w-full h-full overflow-visible">
-                            {/* Gradients definitions for spline styling */}
-                            <defs>
-                              <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#F472B6" stopOpacity="0.25"/>
-                                <stop offset="100%" stopColor="#F472B6" stopOpacity="0.0"/>
-                              </linearGradient>
-                              <linearGradient id="indigoGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#818CF8" stopOpacity="0.25"/>
-                                <stop offset="100%" stopColor="#818CF8" stopOpacity="0.0"/>
-                              </linearGradient>
-                              <linearGradient id="pinkLine" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%" stopColor="#FB7185"/>
-                                <stop offset="50%" stopColor="#F472B6"/>
-                                <stop offset="100%" stopColor="#EC4899"/>
-                              </linearGradient>
-                              <linearGradient id="indigoLine" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%" stopColor="#6366F1"/>
-                                <stop offset="50%" stopColor="#818CF8"/>
-                                <stop offset="100%" stopColor="#4F46E5"/>
-                              </linearGradient>
-                            </defs>
+                          {explorations.length === 0 && assignments.length === 0 && !essayQuestion?.userAnswer ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200/80 p-6 text-center space-y-1.5">
+                              <Compass className="w-8 h-8 text-indigo-400 opacity-60 animate-pulse" />
+                              <h4 className="text-xs font-bold text-slate-700 font-display">Belum Ada Grafik Performa</h4>
+                              <p className="text-[11px] text-slate-400 max-w-sm leading-relaxed font-sans">
+                                Grafik akan merekam perkembangan belajar Anda setelah melakukan eksplorasi sains, analisis lembar kerja, atau menjawab esai harian.
+                              </p>
+                            </div>
+                          ) : (
+                            <svg viewBox="0 0 700 200" className="w-full h-full overflow-visible">
+                              {/* Gradients definitions for spline styling */}
+                              <defs>
+                                <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#F472B6" stopOpacity="0.25"/>
+                                  <stop offset="100%" stopColor="#F472B6" stopOpacity="0.0"/>
+                                </linearGradient>
+                                <linearGradient id="indigoGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#818CF8" stopOpacity="0.25"/>
+                                  <stop offset="100%" stopColor="#818CF8" stopOpacity="0.0"/>
+                                </linearGradient>
+                                <linearGradient id="pinkLine" x1="0" y1="0" x2="1" y2="0">
+                                  <stop offset="0%" stopColor="#FB7185"/>
+                                  <stop offset="50%" stopColor="#F472B6"/>
+                                  <stop offset="100%" stopColor="#EC4899"/>
+                                </linearGradient>
+                                <linearGradient id="indigoLine" x1="0" y1="0" x2="1" y2="0">
+                                  <stop offset="0%" stopColor="#6366F1"/>
+                                  <stop offset="50%" stopColor="#818CF8"/>
+                                  <stop offset="100%" stopColor="#4F46E5"/>
+                                </linearGradient>
+                              </defs>
 
-                            {/* Gridlines */}
-                            <line x1="40" y1="30" x2="660" y2="30" stroke="#F8FAFC" strokeWidth="1" strokeDasharray="3 3" />
-                            <line x1="40" y1="80" x2="660" y2="80" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4 4" />
-                            <line x1="40" y1="130" x2="660" y2="130" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4 4" />
-                            <line x1="40" y1="170" x2="660" y2="170" stroke="#E2E8F0" strokeWidth="1.5" />
+                              {/* Gridlines */}
+                              <line x1="40" y1="30" x2="660" y2="30" stroke="#F8FAFC" strokeWidth="1" strokeDasharray="3 3" />
+                              <line x1="40" y1="80" x2="660" y2="80" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4 4" />
+                              <line x1="40" y1="130" x2="660" y2="130" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4 4" />
+                              <line x1="40" y1="170" x2="660" y2="170" stroke="#E2E8F0" strokeWidth="1.5" />
 
-                            {/* Shading Area Pink */}
-                            <path d="M 40 170 C 120 120, 180 145, 240 75 C 300 -5, 380 95, 460 55 C 540 15, 600 85, 660 65 L 660 170 Z" fill="url(#pinkGrad)" />
-                            {/* Shading Area Indigo */}
-                            <path d="M 40 170 C 110 155, 190 65, 260 105 C 320 145, 400 35, 480 85 C 550 135, 610 55, 660 35 L 660 170 Z" fill="url(#indigoGrad)" />
+                              {/* Shading Area Pink */}
+                              <path d="M 40 170 C 120 120, 180 145, 240 75 C 300 -5, 380 95, 460 55 C 540 15, 600 85, 660 65 L 660 170 Z" fill="url(#pinkGrad)" />
+                              {/* Shading Area Indigo */}
+                              <path d="M 40 170 C 110 155, 190 65, 260 105 C 320 145, 400 35, 480 85 C 550 135, 610 55, 660 35 L 660 170 Z" fill="url(#indigoGrad)" />
 
-                            {/* Spline Line Pink */}
-                            <path 
-                              d="M 40 170 C 120 120, 180 145, 240 75 C 300 -5, 380 95, 460 55 C 540 15, 600 85, 660 65" 
-                              fill="none" 
-                              stroke="url(#pinkLine)" 
-                              strokeWidth="3.5" 
-                              strokeLinecap="round"
-                            />
-                            {/* Spline Line Indigo */}
-                            <path 
-                              d="M 40 170 C 110 155, 190 65, 260 105 C 320 145, 400 35, 480 85 C 550 135, 610 55, 660 35" 
-                              fill="none" 
-                              stroke="url(#indigoLine)" 
-                              strokeWidth="3.5"
-                              strokeLinecap="round"
-                            />
+                              {/* Spline Line Pink */}
+                              <path 
+                                d="M 40 170 C 120 120, 180 145, 240 75 C 300 -5, 380 95, 460 55 C 540 15, 600 85, 660 65" 
+                                fill="none" 
+                                stroke="url(#pinkLine)" 
+                                strokeWidth="3.5" 
+                                strokeLinecap="round"
+                              />
+                              {/* Spline Line Indigo */}
+                              <path 
+                                d="M 40 170 C 110 155, 190 65, 260 105 C 320 145, 400 35, 480 85 C 550 135, 610 55, 660 35" 
+                                fill="none" 
+                                stroke="url(#indigoLine)" 
+                                strokeWidth="3.5"
+                                strokeLinecap="round"
+                              />
 
-                            {/* Key Data Points */}
-                            <circle cx="240" cy="75" r="5.5" fill="#FB7185" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
-                            <circle cx="260" cy="105" r="5.5" fill="#6366F1" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
-                            <circle cx="460" cy="55" r="5.5" fill="#EC4899" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
-                            <circle cx="480" cy="85" r="5.5" fill="#4F46E5" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
+                              {/* Key Data Points */}
+                              <circle cx="240" cy="75" r="5.5" fill="#FB7185" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
+                              <circle cx="260" cy="105" r="5.5" fill="#6366F1" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
+                              <circle cx="460" cy="55" r="5.5" fill="#EC4899" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
+                              <circle cx="480" cy="85" r="5.5" fill="#4F46E5" stroke="#FFFFFF" strokeWidth="2.5" className="shadow-md" />
 
-                            {/* X Axis monthly Tick labels */}
-                            <text x="40" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Jan</text>
-                            <text x="130" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Feb</text>
-                            <text x="220" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Mar</text>
-                            <text x="310" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Apr</text>
-                            <text x="400" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Mei</text>
-                            <text x="490" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Jun</text>
-                            <text x="580" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Jul</text>
-                            <text x="660" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Ags</text>
-                          </svg>
+                              {/* X Axis monthly Tick labels */}
+                              <text x="40" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Jan</text>
+                              <text x="130" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Feb</text>
+                              <text x="220" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Mar</text>
+                              <text x="310" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Apr</text>
+                              <text x="400" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Mei</text>
+                              <text x="490" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Jun</text>
+                              <text x="580" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Jul</text>
+                              <text x="660" y="192" fill="#94A3B8" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">Ags</text>
+                            </svg>
+                          )}
                         </div>
                       </div>
 
@@ -1889,37 +1908,49 @@ export default function App() {
                       <div className="bg-white rounded-[2rem] border border-slate-100/30 p-6 shadow-sm shadow-slate-100/40 hover:shadow-md transition-all duration-300">
                         <div className="flex justify-between items-center mb-5">
                           <h3 className="text-lg font-bold text-slate-800 font-display">Kompetensi Belajar Anda</h3>
-                          <span className="text-[10px] text-slate-400 font-mono">Mei 2026</span>
+                          <span className="text-[10px] text-slate-400 font-mono font-bold capitalize">
+                            {new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                          </span>
                         </div>
 
                         <div className="space-y-4 pt-1">
                           <div className="space-y-1.5">
                             <div className="flex justify-between items-baseline text-xs font-bold text-slate-600">
                               <span>Eksplorasi Lingkungan Aktif</span>
-                              <span className="text-indigo-600 font-black">{(explorations.length + 2) * 10}%</span>
+                              <span className="text-indigo-600 font-black">
+                                {explorations.length > 0 ? `${Math.min(100, explorations.length * 20)}%` : '0%'}
+                              </span>
                             </div>
                             {/* Rounded Indigo Track with inner pill */}
                             <div className="w-full bg-[#EFF2FE] h-5 rounded-full p-0.5 flex">
                               <div 
                                 className="bg-indigo-400 rounded-full h-full transition-all duration-500 shadow-sm"
-                                style={{ width: `${Math.min(((explorations.length + 2) * 10), 100)}%` }}
+                                style={{ width: `${explorations.length > 0 ? Math.min(100, explorations.length * 20) : 0}%` }}
                               />
                             </div>
                           </div>
 
                           <div className="space-y-1.5">
                             <div className="flex justify-between items-baseline text-xs font-bold text-slate-600">
-                              <span>Koreksi Akurasi Lembar Tugas</span>
-                              <span className="text-rose-500 font-black">{(assignments.length + 1) * 30}%</span>
+                              <span>Analisis Lembar Kerja (Sokratik)</span>
+                              <span className="text-rose-500 font-black">
+                                {assignments.length > 0 ? `${Math.min(100, assignments.length * 25)}%` : '0%'}
+                              </span>
                             </div>
                             {/* Rounded Pink Track with inner pill */}
                             <div className="w-full bg-[#FFF0F3] h-5 rounded-full p-0.5 flex">
                               <div 
                                 className="bg-pink-300 rounded-full h-full transition-all duration-500 shadow-sm"
-                                style={{ width: `${Math.min(((assignments.length + 1) * 30), 100)}%` }}
+                                style={{ width: `${assignments.length > 0 ? Math.min(100, assignments.length * 25) : 0}%` }}
                               />
                             </div>
                           </div>
+
+                          {explorations.length === 0 && assignments.length === 0 && (
+                            <p className="text-[10px] text-slate-400 font-sans pt-2 text-center">
+                              Belum ada aktivitas di bulan ini. Mulai eksplorasi atau analisis lembar kerja pertama Anda!
+                            </p>
+                          )}
                         </div>
                       </div>
 
