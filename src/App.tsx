@@ -1060,8 +1060,8 @@ export default function App() {
                 <span className="text-[10px] bg-indigo-50 text-indigo-650 py-0.5 px-2 rounded-full font-bold">Lvl {Math.floor((explorations.length + assignments.length) / 3) + 1}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 border-t border-pink-150/50 pt-2 text-[10px] text-slate-500 font-semibold font-sans">
-                <div>🔍 {explorations.length} Eksplor</div>
-                <div>📝 {assignments.length} Koreksi</div>
+                <div>🔍 {explorations.length} Eksplorasi</div>
+                <div>📄 {assignments.length} Sokratik</div>
               </div>
             </div>
           )}
@@ -1070,7 +1070,7 @@ export default function App() {
           <nav className="space-y-1 pt-2 w-full">
             {[
               { id: 'explore', label: 'Eksplorasi Sains', icon: Compass },
-              { id: 'assignment', label: 'Koreksi Berkas', icon: CheckSquare },
+              { id: 'assignment', label: 'Lembar Kerja Sokratik', icon: CheckSquare },
               { id: 'essay', label: 'Esai Harian', icon: BookOpen },
               { id: 'weekly', label: 'Rapor Belajar', icon: Calendar },
               { id: 'profile', label: 'Profil Saya', icon: UserIcon, badge: (!userProfile || !userProfile.schoolName || !userProfile.grade || !userProfile.favoriteSubject) },
@@ -1200,7 +1200,7 @@ export default function App() {
       <nav className={`md:hidden fixed bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl flex items-center justify-around z-30 h-16 border border-solid border-slate-100/40 shadow-slate-100/50 px-2 py-1 transition-all duration-350 ${selectedExploration ? 'translate-y-28 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
         {[
           { id: 'explore', label: 'Eksplor', icon: Compass },
-          { id: 'assignment', label: 'Koreksi', icon: CheckSquare },
+          { id: 'assignment', label: 'Sokratik', icon: CheckSquare },
           { id: 'essay', label: 'Esai', icon: BookOpen },
           { id: 'weekly', label: 'Rapor', icon: Calendar },
           { id: 'profile', label: 'Profil', icon: UserIcon, badge: (!userProfile || !userProfile.schoolName || !userProfile.grade || !userProfile.favoriteSubject) },
@@ -1318,7 +1318,7 @@ export default function App() {
                       >
                         <div className="flex items-center gap-2">
                           <UserIcon className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Profil & Level Belajar</span>
+                          <span>Profil Belajar</span>
                         </div>
                         {(!userProfile || !userProfile.schoolName || !userProfile.grade || !userProfile.favoriteSubject) && (
                           <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping" title="Perlu dilengkapi" />
@@ -1331,7 +1331,7 @@ export default function App() {
                           className="w-full flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0"
                         >
                           <LogOut className="w-3.5 h-3.5" />
-                          <span>Keluar ke Halaman Publik</span>
+                          <span>Keluar Akun</span>
                         </button>
                       ) : (
                         <div className="space-y-1.5 pt-1 border-t border-slate-100">
@@ -1340,14 +1340,14 @@ export default function App() {
                             className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0 shadow-xs"
                           >
                             <Sparkle className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                            <span>Masuk dengan Google</span>
+                            <span>Masuk Google</span>
                           </button>
                           <button
                             onClick={handleGoogleLogout}
                             className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border-0"
                           >
                             <LogOut className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Keluar ke Halaman Publik</span>
+                            <span>Keluar Akun</span>
                           </button>
                         </div>
                       )}
@@ -1407,7 +1407,7 @@ export default function App() {
                         onClick={() => setSelectedExploration(null)}
                         className="text-indigo-600 hover:text-indigo-800 font-bold text-xs flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 p-2.5 px-4 rounded-xl transition-all w-full justify-center border-0 cursor-pointer"
                       >
-                        <ChevronLeft className="w-4 h-4" /> Kembali ke Galeri
+                        <ChevronLeft className="w-4 h-4" /> Kembali
                       </button>
 
                       <div className="bg-white rounded-2xl border border-solid border-slate-100/35 p-4 space-y-4 shadow-sm shadow-slate-100/40 hover:shadow-md transition-all duration-300">
@@ -1429,12 +1429,12 @@ export default function App() {
                             {copiedId === selectedExploration.id ? (
                               <>
                                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Sesi Percakapan Tersalin!</span>
+                                <span>Laporan Tersalin!</span>
                               </>
                             ) : (
                               <>
                                 <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                <span>Salin Laporan Percakapan</span>
+                                <span>Salin Laporan</span>
                               </>
                             )}
                           </button>
@@ -1447,7 +1447,7 @@ export default function App() {
                                 className="w-full bg-emerald-50 hover:bg-emerald-100 border border-solid border-emerald-100 text-emerald-700 text-[11px] font-bold py-2 p-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                               >
                                 <FileText className="w-3.5 h-3.5 shrink-0" />
-                                <span>{exportingId === selectedExploration.id ? 'Mengunduh...' : 'Simpan Percakapan ke Docs'}</span>
+                                <span>{exportingId === selectedExploration.id ? 'Mengunduh...' : 'Simpan Docs'}</span>
                               </button>
                               
                               {exportSuccessMessage?.id === selectedExploration.id && (
@@ -2019,10 +2019,10 @@ export default function App() {
             {activeTab === 'assignment' && (
               <div className="space-y-6">
                 <div className="border-b border-solid border-slate-200 pb-5">
-                  <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-                    <CheckSquare className="text-indigo-600 w-7 h-7" /> Pemeriksaan Tugas Otomatis
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5 font-display">
+                    <CheckSquare className="text-indigo-600 w-7 h-7" /> Analisis Lembar Kerja (Sokratik)
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1">Unggah lembar jawaban tugas sains atau matematika Anda untuk dianalisis dan dikoreksi oleh AI seketika.</p>
+                  <p className="text-xs text-slate-500 mt-1 font-sans">Unggah lembar kerja sains atau matematika Anda untuk dibedah secara Sokratik. Dapatkan pemahaman konsep mendalam dan pertanyaan pemantik tanpa kunci jawaban instan.</p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
@@ -2039,7 +2039,7 @@ export default function App() {
                         onClick={() => setShowNewAssignmentModal(true)}
                         className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-indigo-600/10 active:scale-95 transition-all cursor-pointer border-0"
                       >
-                        <Plus className="w-4 h-4" /> Unggah Lembaran Berkas
+                        <Plus className="w-4 h-4" /> Unggah Berkas
                       </button>
 
                       {/* Demo Presets fast track */}
@@ -2118,7 +2118,7 @@ export default function App() {
                               className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-indigo-600/20 transition-all cursor-pointer border-0 active:scale-98"
                             >
                               <MessageSquare className="w-4 h-4 text-indigo-200" />
-                              <span>Buka Obrolan & Diskusi Tugas ({asg.chatHistory?.length || 0} Pesan)</span>
+                              <span>Buka Obrolan ({asg.chatHistory?.length || 0})</span>
                               <ChevronRight className="w-4 h-4 opacity-80" />
                             </button>
 
@@ -2136,7 +2136,7 @@ export default function App() {
                                 ) : (
                                   <>
                                     <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                    <span>Salin Hasil Evaluasi</span>
+                                    <span>Salin Hasil</span>
                                   </>
                                 )}
                               </button>
@@ -2149,7 +2149,7 @@ export default function App() {
                                     className="bg-indigo-50 hover:bg-indigo-100 border border-solid border-indigo-100/50 text-indigo-750 text-[10.5px] py-1.5 px-3 rounded-lg flex items-center justify-center gap-1 font-extrabold cursor-pointer transition-all disabled:opacity-50 shadow-xs"
                                   >
                                     <FileText className="w-3.5 h-3.5" />
-                                    <span>{exportingId === asg.id ? 'Mengunggah ke Cloud Docs...' : 'Ekspor Evaluasi ke Google Docs'}</span>
+                                    <span>{exportingId === asg.id ? 'Mengunggah...' : 'Simpan Docs'}</span>
                                   </button>
                                   {exportSuccessMessage?.id === asg.id && (
                                     <div className="mt-1.5 text-right text-[9.5px] text-emerald-700 font-bold bg-emerald-50 py-1 px-2.5 rounded-lg border border-solid border-emerald-100 font-sans">
@@ -2244,7 +2244,7 @@ export default function App() {
                                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 font-bold text-xs py-3 text-white rounded-xl shadow-lg hover:shadow-indigo-600/15 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 border-0"
                               >
                                 {submitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                                <span>Kirim Jawaban Ke Guru AI</span>
+                                <span>Kirim Jawaban</span>
                               </button>
                             </form>
                           )}
@@ -2280,12 +2280,12 @@ export default function App() {
                               {copiedId === essayQuestion.id ? (
                                 <>
                                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Esai & Feedback Tersalin!</span>
+                                  <span>Tersalin!</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>Salin Hasil Esai & AI Review</span>
+                                  <span>Salin Esai</span>
                                 </>
                               )}
                             </button>
@@ -2298,7 +2298,7 @@ export default function App() {
                                   className="w-full bg-indigo-50 hover:bg-indigo-100 border border-solid border-indigo-200 text-indigo-700 font-extrabold text-[10px] py-2 px-3 rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
                                 >
                                   <FileText className="w-3.5 h-3.5 shrink-0" />
-                                  <span>{exportingId === essayQuestion.id ? 'Mengunggah esai...' : 'Simpan Evaluasi Esai ke Docs'}</span>
+                                  <span>{exportingId === essayQuestion.id ? 'Mengunggah...' : 'Simpan Docs'}</span>
                                 </button>
                                 {exportSuccessMessage?.id === essayQuestion.id && (
                                   <div className="p-3 rounded-xl bg-emerald-50 text-emerald-950 border border-solid border-emerald-100 text-[10px] text-center font-bold">
@@ -2388,7 +2388,7 @@ export default function App() {
                       className="bg-indigo-50 hover:bg-indigo-105 text-indigo-700 border border-solid border-indigo-200 font-bold text-xs py-3 px-6 rounded-xl flex items-center justify-center gap-2 shrink-0 shadow-xs active:scale-97 transition-all cursor-pointer disabled:opacity-50"
                     >
                       <Sparkles className="w-4 h-4 text-indigo-400 fill-indigo-200" />
-                      <span>{submitting ? 'SEDANG MENGANALISIS...' : 'TERBITKAN RAPOR MINGGUAN'}</span>
+                      <span>{submitting ? 'SEDANG MENGANALISIS...' : 'TERBITKAN RAPOR'}</span>
                     </button>
                   </div>
                 )}
@@ -2445,12 +2445,12 @@ export default function App() {
                               {copiedId === review.id ? (
                                 <>
                                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Rapor Belajar Tersalin!</span>
+                                  <span>Rapor Tersalin!</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>Salin Isi Rapor</span>
+                                  <span>Salin Rapor</span>
                                 </>
                               )}
                             </button>
@@ -2463,7 +2463,7 @@ export default function App() {
                                   className="bg-indigo-50 hover:bg-indigo-100 border border-solid border-indigo-105 text-indigo-700 text-[10px] py-1.5 rounded-lg flex items-center justify-center gap-1 font-bold cursor-pointer disabled:opacity-50 shadow-xs hover:shadow-sm"
                                 >
                                   <FileText className="w-3.5 h-3.5" />
-                                  <span>{exportingId === review.id ? 'Mengunggah laporan...' : 'Sinkron Rapor ke Google Docs'}</span>
+                                  <span>{exportingId === review.id ? 'Mengunggah...' : 'Simpan Docs'}</span>
                                 </button>
                                 {exportSuccessMessage?.id === review.id && (
                                   <div className="mt-2 text-center text-[10px] text-emerald-800 bg-emerald-50/50 p-2 rounded-lg border border-solid border-emerald-100/40 font-sans shadow-xs">
@@ -2757,7 +2757,7 @@ export default function App() {
                         ) : (
                           <>
                             <Save className="w-4 h-4" />
-                            <span>Simpan Profil Belajar</span>
+                            <span>Simpan Profil</span>
                           </>
                         )}
                       </button>

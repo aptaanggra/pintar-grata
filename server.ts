@@ -448,17 +448,21 @@ app.post('/api/assignments', async (req, res) => {
     const userId = getUserId(req);
     const studentProfileCtx = await getStudentProfileContext(userId);
 
-    const promptText = `Anda adalah seorang "Guru Korektor AI" profesional & mentor bimbingan sains mendalam.${studentProfileCtx}
-Periksa dokumen tugas siswa berikut yang diunggah dengan nama file: "${filename}" dan format: "${fileType}".
+    const promptText = `PRINSIP UTAMA (SANGAT KETAT):
+Aplikasi ini DILARANG KERAS memberikan kunci jawaban langsung, jawaban singkat instan, atau menyelesaikan soal tugas untuk siswa.
+Tujuan utama aplikasi adalah memfasilitasi pendalaman materi, analisis kritis, eksplorasi, dan membangun rasa ingin tahu siswa melalui METODE SOKRATIK.
+
+Anda adalah "Guru Mentor Sains Sokratik" profesional.${studentProfileCtx}
+Analisis dokumen lembar kerja / soal yang diunggah siswa dengan nama file: "${filename}" dan format: "${fileType}".
 ${userNote ? `\nCatatan / Pertanyaan Tambahan dari Siswa: "${userNote}"` : ''}
 
 Tugas Anda:
-1. Berikan skor numerik (nilai tugas) dari rentang 0 sampai 100 secara objektif berdasarkan kerapian, kelengkapan, dan akurasi isi yang tampak di dokumen.
-2. Buatlah ulasan (review) dalam bentuk Markdown komprehensif bahasa Indonesia yang terstruktur rapi:
-   - **Analisis Tugas**: Penjelasan singkat isi dokumen yang berhasil diidentifikasi.
-   - **Kelebihan**: Aspek luar biasa dari tugas yang dikerjakan murid.
-   - **Poin Perbaikan**: Sisi minor atau kesalahan yang perlu diperbaiki.
-   - **Saran Langkah Nyata**: Tips konkret 1-2-3 agar siswa dapat menyempurnakan jawaban ini di masa mendatang.
+1. Berikan skor estimasi tingkat pemahaman (0-100) berdasarkan kejelasan pengerjaan / penulisan siswa yang terlihat.
+2. Buat ulasan (review) Sokratik dalam format Markdown terstruktur rapi (Bahasa Indonesia):
+   - **Pemetaan Konsep Utama**: Jelaskan prinsip/topik sains utama yang dibahas dalam dokumen tanpa membocorkan jawaban akhir soal.
+   - **Apresiasi & Logika Siswa**: Ulas bagian penalaran atau pengamatan baik yang telah ditunjukkan siswa.
+   - **Petunjuk Sokratik & Pertanyaan Pemantik**: Berikan petunjuk logika, variabel kunci, dan 2-3 pertanyaan pembimbing Sokratik agar siswa dapat memikirkan, mencoba, dan menemukan solusi soal tersebut sendiri secara mandiri.
+   - **Eksplorasi Lanjutan**: Saran eksperimen sederhana di rumah atau fenomena alam terkait untuk memperdalam rasa ingin tahu siswa.
 
 Harap kembalikan respon dalam struktur objek JSON dengan key:
 "score" (integer) dan "review" (markdown string)`;
@@ -491,12 +495,12 @@ Harap kembalikan respon dalam struktur objek JSON dengan key:
     const initialChatHistory: ChatMessage[] = [
       {
         sender: 'user',
-        message: `Halo Guru AI, saya mengajukan lembar Tugas Pintar: "${filename}"${userNote ? `\n\nCatatan/Pertanyaan Saya: "${userNote}"` : ''}`,
+        message: `Halo Guru AI, saya mengajukan lembar kerja: "${filename}"${userNote ? `\n\nCatatan/Pertanyaan Saya: "${userNote}"` : ''}`,
         timestamp: uploadedAt
       },
       {
         sender: 'ai',
-        message: `Tugas "${filename}" telah selesai dikoreksi dengan skor **${result.score}/100**!\n\nBerikut ringkasan evaluasi:\n${result.review}\n\nSilakan ajukan pertanyaan atau minta penjelasan lebih mendalam jika ada bagian soal yang belum kamu pahami!`,
+        message: `Lembar kerja "${filename}" telah dianalisis secara Sokratik!\n\nBerikut panduan & petunjuk pemahaman konsep:\n${result.review}\n\nSilakan ajukan pertanyaan atau diskusikan bagian konsep yang ingin kamu bedah lebih dalam bersama Guru AI!`,
         timestamp: new Date().toISOString()
       }
     ];
@@ -586,23 +590,27 @@ app.post('/api/assignments/:id/chat', async (req, res) => {
       }
     }
 
-    const promptText = `Anda adalah "Guru AI" yang sabar, cerdas, dan interaktif.${studentProfileCtx}
-Siswa sedang berdiskusi mengenai lembar tugas yang diunggah dengan nama file: "${assignment.filename}" (Skor Evaluasi: ${assignment.score}/100).
+    const promptText = `PRINSIP KETAT SOKRATIK (SANGAT PENTING):
+1. DILARANG KERAS memberikan jawaban instan / kunci jawaban langsung jika siswa meminta jawaban soal (misalnya "apa jawaban nomor 3?", "tolong jawabkan soal ini", "apa kuncinya?").
+2. Jika siswa meminta jawaban langsung, ingatkan dengan hangat & tegas bahwa aplikasi ini adalah teman berpikir mandiri, lalu berikan petunjuk logika (hint), konsep dasar, dan pertanyaan pemantik agar siswa menemukannya sendiri.
+3. Bimbing siswa step-by-step dengan pendekatan ilmiah dan dialog Sokratik.
 
-REKAM OBROLAN TUGAS SEBELUMNYA:
+Anda adalah "Guru Mentor Sains Sokratik" yang komunikatif dan inspiratif.${studentProfileCtx}
+Siswa sedang berdiskusi mengenai lembar kerja: "${assignment.filename}" (Tingkat Pemahaman: ${assignment.score}/100).
+
+REKAM OBROLAN SEBELUMNYA:
 ${chatHistoryContext}
 
-PERTANYAAN BARU SISWA:
+PERTANYAAN / INPUT BARU SISWA:
 "${message}"
 
 TUGAS ANDA:
-1. Jawab pertanyaan siswa secara lugas, ramah, dan sangat mendidik.
-2. Jika siswa bertanya tentang rumus, langkah penyelesaian, atau konsep yang membingungkan dari tugasnya, berikan penjelasan runtut langkah-demi-langkah.
-3. Sisipkan notasi rujukan inline [1], [2] jika relevan dengan daftar jurnal.
-4. Jika bermanfaat untuk memperjelas visual, buatlah 1 ilustrasi diagram SVG ilmiah di array "illustrations".
-5. Jika relevan, sertakan 1-2 referensi akademik/jurnal di array "journals".
+1. Tanggapi pertanyaan siswa dalam field "message" menggunakan metode Sokratik. Jelaskan konsep ilmiah secara mendalam, berikan petunjuk pengerjaan runtut, dan ajukan pertanyaan pembimbing untuk menguji pemahaman mereka.
+2. Sisipkan notasi rujukan inline [1], [2] jika merujuk pada jurnal di array "journals".
+3. Sertakan minimal 1 ilustrasi diagram SVG ilmiah di array "illustrations" untuk memvisualisasikan fenomena/konsep fisika, biologi, atau kimia yang sedang dibahas.
+4. Sertakan minimal 2 referensi akademis/jurnal kredibel di array "journals" untuk mendukung argumen ilmiah.
 
-Kembalikan jawaban dalam format JSON sesuai schema (message, illustrations, journals).`;
+Kembalikan jawaban penuh dalam JSON sesuai schema (message, illustrations, journals).`;
 
     parts.push({ text: promptText });
 

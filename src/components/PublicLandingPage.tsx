@@ -16,7 +16,8 @@ import {
   UserCheck,
   BrainCircuit,
   Search,
-  Sparkle
+  Sparkle,
+  ExternalLink
 } from 'lucide-react';
 
 interface PublicLandingPageProps {
@@ -59,7 +60,7 @@ export function PublicLandingPage({
                   v2.5
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">Platform Akselerasi Belajar & Koreksi Tugas Sains</p>
+              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">Platform Bimbingan Sokratik & Eksplorasi Sains SD - SMP</p>
             </div>
           </div>
 
@@ -80,7 +81,7 @@ export function PublicLandingPage({
               className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center gap-2 border border-indigo-500 active:scale-95 disabled:opacity-50"
             >
               <LogIn className="w-4 h-4" />
-              <span>{isConnectingGoogle ? 'Menghubungkan...' : 'Masuk / Daftar'}</span>
+              <span>{isConnectingGoogle ? 'Menghubungkan...' : 'Masuk Akun'}</span>
             </button>
           </div>
 
@@ -93,17 +94,17 @@ export function PublicLandingPage({
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-extrabold mb-8 shadow-xs">
           <Sparkles className="w-4 h-4 text-amber-500 fill-amber-400" />
-          <span>Asisten AI Pendamping Belajar Sains SD - SMP & Koreksi Tugas Instan</span>
+          <span>Pendamping Eksplorasi & Bimbingan Sokratik Sains SD - SMP</span>
         </div>
 
         {/* Main Headline */}
         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-tight max-w-4xl mx-auto font-display">
-          Solusi Pintar Menganalisis <span className="text-indigo-600">Foto Tugas Sekolah</span> & Eksplorasi Sains
+          Jelajahi Dunia Sains & <span className="text-indigo-600">Nyalakan Rasa Ingin Tahu</span>
         </h1>
 
         {/* Subtitle */}
         <p className="mt-6 text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed font-sans font-normal">
-          Bantu siswa memahami pelajaran IPA & Sains lebih cepat. Cukup foto lembar tugas atau objek di sekitar, sistem memberikan ulasan koreksi melangkah, gambar diagram visual, rujukan ilmiah, dan rapor mingguan otomatis.
+          Fasilitas pembelajaran berbasis inkuiri untuk siswa SD - SMP. Foto objek alam atau lembar kerja untuk memahami konsep IPA secara mendalam melalui panduan Sokratik, diagram visual, dan diskusi kritis tanpa kunci jawaban instan.
         </p>
 
         {/* Call-to-action Buttons */}
@@ -114,7 +115,7 @@ export function PublicLandingPage({
             className="w-full sm:w-auto px-8 py-4 rounded-2xl text-sm font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/25 cursor-pointer flex items-center justify-center gap-2.5 border border-indigo-500 active:scale-95 disabled:opacity-50"
           >
             <Sparkle className="w-5 h-5 text-amber-300 fill-amber-300 animate-spin" />
-            <span>{isConnectingGoogle ? 'Menghubungkan Akun...' : 'Bergabung Sekarang (1-Klik Masuk)'}</span>
+            <span>{isConnectingGoogle ? 'Menghubungkan...' : 'Bergabung Sekarang'}</span>
             <ArrowRight className="w-4 h-4 ml-1" />
           </button>
 
@@ -123,34 +124,28 @@ export function PublicLandingPage({
             className="w-full sm:w-auto px-6 py-4 rounded-2xl text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all border border-slate-200 cursor-pointer flex items-center justify-center gap-2 shadow-xs hover:border-slate-300"
           >
             <Eye className="w-4 h-4 text-indigo-600" />
-            <span>Jelajahi Mode Tamu Gratis</span>
+            <span>Mode Tamu</span>
           </button>
         </div>
 
-        {/* Iframe Notice if applicable */}
-        {isInIframe && (
-          <div className="mt-6 max-w-lg mx-auto p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium leading-relaxed shadow-xs">
-            💡 <strong>Saran Akses:</strong> Jika jendela login terhalang oleh sistem keamanan iframe browser, Anda dapat mengeklik tombol <strong>Mode Tamu</strong> di atas untuk mencoba langsung tanpa login.
-          </div>
-        )}
 
         {/* Highlight Stats / Badges */}
-        <div className="mt-14 pt-8 border-t border-slate-200/80 grid grid-cols-2 md:grid-cols-4 gap-4 text-center max-w-4xl mx-auto">
-          <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs">
-            <span className="text-xl font-black text-indigo-600 font-mono block">100%</span>
-            <span className="text-[11px] text-slate-600 font-semibold mt-0.5 block">Bebas Iklan & Aman Anak</span>
+        <div className="mt-14 pt-8 border-t border-slate-200/80 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-center max-w-4xl mx-auto">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs flex flex-col justify-center items-center">
+            <span className="text-base sm:text-lg font-extrabold text-indigo-600 font-sans whitespace-nowrap block">100% Aman</span>
+            <span className="text-[11px] text-slate-600 font-semibold mt-1 block whitespace-nowrap">Bebas Iklan & Filter</span>
           </div>
-          <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs">
-            <span className="text-xl font-black text-purple-600 font-mono block">Instan</span>
-            <span className="text-[11px] text-slate-600 font-semibold mt-0.5 block">Koreksi & Review Tugas</span>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs flex flex-col justify-center items-center">
+            <span className="text-base sm:text-lg font-extrabold text-purple-600 font-sans whitespace-nowrap block">Instan</span>
+            <span className="text-[11px] text-slate-600 font-semibold mt-1 block whitespace-nowrap">Koreksi & Evaluasi</span>
           </div>
-          <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs">
-            <span className="text-xl font-black text-rose-600 font-mono block">Visual & Rujukan</span>
-            <span className="text-[11px] text-slate-600 font-semibold mt-0.5 block">Diagram & Referensi Ilmiah</span>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs flex flex-col justify-center items-center">
+            <span className="text-base sm:text-lg font-extrabold text-rose-600 font-sans whitespace-nowrap block">Visual</span>
+            <span className="text-[11px] text-slate-600 font-semibold mt-1 block whitespace-nowrap">Diagram & Referensi</span>
           </div>
-          <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs">
-            <span className="text-xl font-black text-emerald-600 font-mono block">Dokumen Awan</span>
-            <span className="text-[11px] text-slate-600 font-semibold mt-0.5 block">Sinkronisasi Otomatis</span>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white/80 border border-slate-200/80 shadow-xs flex flex-col justify-center items-center">
+            <span className="text-base sm:text-lg font-extrabold text-emerald-600 font-sans whitespace-nowrap block">Awan Docs</span>
+            <span className="text-[11px] text-slate-600 font-semibold mt-1 block whitespace-nowrap">Sinkron Otomatis</span>
           </div>
         </div>
 
@@ -181,7 +176,7 @@ export function PublicLandingPage({
               }`}
             >
               <CheckSquare className="w-4 h-4" />
-              <span>1. Koreksi Lembar Tugas</span>
+              <span>Analisis Sokratik</span>
             </button>
 
             <button
@@ -193,7 +188,7 @@ export function PublicLandingPage({
               }`}
             >
               <Compass className="w-4 h-4" />
-              <span>2. Eksplorasi Alam & Visual</span>
+              <span>Eksplorasi Alam</span>
             </button>
 
             <button
@@ -205,7 +200,7 @@ export function PublicLandingPage({
               }`}
             >
               <BookOpen className="w-4 h-4" />
-              <span>3. Esai Harian AI</span>
+              <span>Esai Harian</span>
             </button>
 
             <button
@@ -217,7 +212,7 @@ export function PublicLandingPage({
               }`}
             >
               <Calendar className="w-4 h-4" />
-              <span>4. Rapor Mingguan Otomatis</span>
+              <span>Rapor Mingguan</span>
             </button>
           </div>
 
@@ -228,36 +223,36 @@ export function PublicLandingPage({
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
                   <div>
                     <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200/80 px-2.5 py-1 rounded-md font-mono font-bold uppercase">
-                      Simulasi Modul Koreksi Tugas
+                      Simulasi Modul Sokratik
                     </span>
-                    <h3 className="text-lg font-bold text-slate-900 mt-1">Ulasan Foto Lembar Soal & Skor Penilaian Instan</h3>
+                    <h3 className="text-lg font-bold text-slate-900 mt-1">Bedah Lembar Kerja & Petunjuk Berpikir Kritis</h3>
                   </div>
                   <div className="bg-indigo-600 text-white font-black text-sm px-4 py-1.5 rounded-xl shadow-xs font-mono">
-                    SKOR: 95 / 100
+                    PEMAHAMAN: 95 / 100
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
                     <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-indigo-600" /> Pratinjau Foto Lembar Tugas
+                      <FileText className="w-4 h-4 text-indigo-600" /> Pratinjau Lembar Kerja Siswa
                     </span>
                     <div className="bg-white rounded-xl p-4 text-center border border-dashed border-slate-300">
                       <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2 font-bold text-lg">
-                        📷
+                        📄
                       </div>
-                      <p className="text-xs font-bold text-slate-800">Foto_Tugas_Sains_Ekosistem.png</p>
-                      <p className="text-[10px] text-slate-500 mt-1">Siswa mengunggah foto tugas rumah mengenai Rantai Makanan & Produsen Utama.</p>
+                      <p className="text-xs font-bold text-slate-800">Lembar_Kerja_Ekosistem.png</p>
+                      <p className="text-[10px] text-slate-500 mt-1">Siswa mengunggah lembar studi kasus Rantai Makanan untuk dipelajari.</p>
                     </div>
                   </div>
 
                   <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
                     <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Hasil Analisis Guru AI
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Panduan Sokratik Guru AI
                     </span>
                     <div className="space-y-2 text-xs text-slate-700 leading-relaxed font-sans">
-                      <p><strong className="text-slate-900">● Analisis Jawaban Nomor 1:</strong> Sangat tepat! Produsen utama pada ekosistem padang rumput adalah rumput yang mengubah energi matahari lewat fotosintesis.</p>
-                      <p><strong className="text-slate-900">● Catatan Perbaikan Nomor 3:</strong> Tambahkan penjelasan peran dekomposer (jamur/bakteri) saat konsumen tingkat akhir mati.</p>
+                      <p><strong className="text-slate-900">● Analisis Konsep:</strong> Logika pada nomor 1 sudah tepat dalam mengidentifikasi produsen utama (tumbuhan hijau).</p>
+                      <p><strong className="text-slate-900">● Pertanyaan Pemantik Sokratik:</strong> Coba renungkan: Jika populasi konsumen tingkat 1 berkurang drastis, apa yang akan terjadi pada rumput dan pemangsa di tingkat atasnya? Coba jelaskan alasanmu!</p>
                     </div>
                   </div>
                 </div>
@@ -394,9 +389,9 @@ export function PublicLandingPage({
             <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white font-mono font-black text-lg flex items-center justify-center shadow-md shadow-rose-600/20">
               3
             </div>
-            <h3 className="text-base font-bold text-slate-900 font-display">Mulai Unggah & Simpan Dokumen</h3>
+            <h3 className="text-base font-bold text-slate-900 font-display">Mulai Unggah & Analisis Sokratik</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Langsung unggah foto tugas sekolah atau tanyakan konsep sains. Hasil laporan dapat disimpan otomatis ke penyimpanan dokumen digital Anda.
+              Unggah lembar kerja sains atau objek alam untuk dibedah secara Sokratik. Dapatkan petunjuk konsep, pertanyaan pemantik, dan simpan laporan ke dokumen digital Anda.
             </p>
           </div>
 
@@ -416,9 +411,9 @@ export function PublicLandingPage({
             <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <BrainCircuit className="w-5 h-5" />
             </div>
-            <h4 className="text-sm font-bold text-slate-900">Analisis AI Presisi & Mendidik</h4>
+            <h4 className="text-sm font-bold text-slate-900">Bimbingan Sokratik & Mendidik</h4>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Memberikan ulasan konstruktif, bukan sekadar jawaban instan, sehingga siswa benar-benar memahami konsep sains.
+              Memberikan petunjuk berpikir, pertanyaan pembimbing, dan pemahaman konsep—bukan kunci jawaban instan—sehingga siswa terlatih berpikir kritis dan mandiri.
             </p>
           </div>
 
@@ -502,7 +497,7 @@ export function PublicLandingPage({
                 onClick={onEnterGuest}
                 className="w-full sm:w-auto px-6 py-3.5 rounded-xl text-xs font-bold text-slate-200 bg-white/10 hover:bg-white/20 transition-all border border-white/20 cursor-pointer"
               >
-                Coba Mode Tamu Tanpa Login
+                Mode Tamu
               </button>
             </div>
           </div>
