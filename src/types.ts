@@ -82,5 +82,26 @@ export interface UserProfile {
   grade: string;
   favoriteSubject: string;
   updatedAt?: string;
+  // Privacy & Public Leaderboard permissions
+  isPublicPermissionGranted?: boolean;
+  displayNameChoice?: 'real_name' | 'pseudonym';
+  pseudonym?: string;
+}
+
+export interface PublicLeaderboardEntry {
+  userId: string;
+  displayName: string;
+  isPseudonym: boolean;
+  pseudonym?: string;
+  schoolName?: string;
+  grade?: string;
+  favoriteSubject?: string;
+  avatarUrl?: string;
+  scorePercentage: number;
+  xpPoints: number;
+  explorationsCount: number;
+  assignmentsCount: number;
+  essaysCount: number;
+  rank?: number;
 }
 

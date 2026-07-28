@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { db, initDb } from './db';
+import { db, initDb, generateCoolPseudonym } from './db';
 import { GoogleGenAI, Type } from '@google/genai';
 import { ExploreReport, Assignment, DailyQuestion, WeeklyReview, ChatMessage } from './src/types';
 
@@ -105,7 +105,15 @@ app.get('/api/profile', async (req, res) => {
   try {
     const userId = getUserId(req);
     const profile = await db.getUserProfile(userId);
-    res.json(profile || { userId, schoolName: '', grade: '', favoriteSubject: '' });
+    res.json(profile || { 
+      userId, 
+      schoolName: '', 
+      grade: '', 
+      favoriteSubject: '',
+      isPublicPermissionGranted: false,
+      displayNameChoice: 'pseudonym',
+      pseudonym: generateCoolPseudonym()
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -114,20 +122,54 @@ app.get('/api/profile', async (req, res) => {
 app.post('/api/profile', async (req, res) => {
   try {
     const userId = getUserId(req);
-    const { schoolName, grade, favoriteSubject, name, email } = req.body;
+    const { 
+      schoolName, 
+      grade, 
+      favoriteSubject, 
+      name, 
+      email, 
+      isPublicPermissionGranted, 
+      displayNameChoice, 
+      pseudonym 
+    } = req.body;
+
     if (!schoolName || !grade || !favoriteSubject) {
       return res.status(400).json({ error: 'Nama sekolah, kelas, dan pelajaran favorit wajib diisi.' });
     }
+
     const updated = await db.saveUserProfile({
       userId,
       schoolName: String(schoolName).trim(),
       grade: String(grade).trim(),
       favoriteSubject: String(favoriteSubject).trim(),
       name,
-      email
+      email,
+      isPublicPermissionGranted: Boolean(isPublicPermissionGranted),
+      displayNameChoice: displayNameChoice === 'real_name' ? 'real_name' : 'pseudonym',
+      pseudonym: pseudonym?.trim() || generateCoolPseudonym()
     });
     res.json(updated);
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/profile/generate-pseudonym', (req, res) => {
+  try {
+    const newAlias = generateCoolPseudonym();
+    res.json({ pseudonym: newAlias });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 0.b Public Leaderboard API Route (Only Real Users with Permission)
+app.get('/api/public-leaderboard', async (req, res) => {
+  try {
+    const entries = await db.getPublicLeaderboardEntries();
+    res.json(entries);
+  } catch (error: any) {
+    console.error('Error fetching public leaderboard:', error);
     res.status(500).json({ error: error.message });
   }
 });

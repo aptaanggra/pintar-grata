@@ -1,7 +1,24 @@
 import fs from 'fs';
 import path from 'path';
 import pg from 'pg';
-import { ExploreReport, Assignment, DailyQuestion, WeeklyReview, UserProfile } from './src/types';
+import { ExploreReport, Assignment, DailyQuestion, WeeklyReview, UserProfile, PublicLeaderboardEntry } from './src/types';
+
+export function generateCoolPseudonym(): string {
+  const titles = [
+    'Peneliti Cilik',
+    'Eksplorator Sains',
+    'Socrates Muda',
+    'Detektif Alam',
+    'Bintang Fisika',
+    'Komet Biologi',
+    'Pengamat Alam',
+    'Inovator Cerdas',
+    'Pintis Sains'
+  ];
+  const title = titles[Math.floor(Math.random() * titles.length)];
+  const num = Math.floor(100 + Math.random() * 900);
+  return `${title} #${num}`;
+}
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
@@ -242,6 +259,9 @@ export async function initDb() {
         school_name TEXT NOT NULL DEFAULT '',
         grade TEXT NOT NULL DEFAULT '',
         favorite_subject TEXT NOT NULL DEFAULT '',
+        is_public BOOLEAN DEFAULT false,
+        display_name_choice TEXT DEFAULT 'pseudonym',
+        pseudonym TEXT,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -254,6 +274,9 @@ export async function initDb() {
     await pool.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS chat_history JSONB;`);
     await pool.query(`ALTER TABLE daily_questions ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
     await pool.query(`ALTER TABLE weekly_reviews ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'guest';`);
+    await pool.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false;`);
+    await pool.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS display_name_choice TEXT DEFAULT 'pseudonym';`);
+    await pool.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pseudonym TEXT;`);
 
     try {
       await pool.query(`ALTER TABLE daily_questions DROP CONSTRAINT IF EXISTS daily_questions_pkey;`);
@@ -654,6 +677,9 @@ export const db = {
             schoolName: row.school_name || '',
             grade: row.grade || '',
             favoriteSubject: row.favorite_subject || '',
+            isPublicPermissionGranted: row.is_public ?? false,
+            displayNameChoice: (row.display_name_choice as 'real_name' | 'pseudonym') || 'pseudonym',
+            pseudonym: row.pseudonym || undefined,
             updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at
           };
         }
@@ -674,19 +700,30 @@ export const db = {
       return profile;
     }
     const updatedAt = new Date().toISOString();
-    const updatedProfile = { ...profile, updatedAt };
+    let pseudonym = profile.pseudonym;
+    if (!pseudonym) {
+      pseudonym = generateCoolPseudonym();
+    }
+    const updatedProfile = {
+      ...profile,
+      pseudonym,
+      updatedAt
+    };
 
     if (pool) {
       try {
         await pool.query(`
-          INSERT INTO user_profiles (user_id, name, email, school_name, grade, favorite_subject, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO user_profiles (user_id, name, email, school_name, grade, favorite_subject, is_public, display_name_choice, pseudonym, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           ON CONFLICT (user_id) DO UPDATE SET
             name = EXCLUDED.name,
             email = EXCLUDED.email,
             school_name = EXCLUDED.school_name,
             grade = EXCLUDED.grade,
             favorite_subject = EXCLUDED.favorite_subject,
+            is_public = EXCLUDED.is_public,
+            display_name_choice = EXCLUDED.display_name_choice,
+            pseudonym = EXCLUDED.pseudonym,
             updated_at = EXCLUDED.updated_at
         `, [
           updatedProfile.userId,
@@ -695,6 +732,9 @@ export const db = {
           updatedProfile.schoolName || '',
           updatedProfile.grade || '',
           updatedProfile.favoriteSubject || '',
+          updatedProfile.isPublicPermissionGranted ?? false,
+          updatedProfile.displayNameChoice || 'pseudonym',
+          updatedProfile.pseudonym,
           updatedAt
         ]);
         return updatedProfile;
@@ -715,6 +755,112 @@ export const db = {
       console.error('[JSON Error] Failed writing user profile to disk:', err);
     }
     return updatedProfile;
+  },
+
+  // Get Public Leaderboard Entries (Only users who gave permission)
+  async getPublicLeaderboardEntries(): Promise<PublicLeaderboardEntry[]> {
+    let publicProfiles: UserProfile[] = [];
+
+    if (pool) {
+      try {
+        const res = await pool.query('SELECT * FROM user_profiles WHERE is_public = true');
+        publicProfiles = res.rows.map((row) => ({
+          userId: row.user_id,
+          name: row.name || undefined,
+          email: row.email || undefined,
+          schoolName: row.school_name || '',
+          grade: row.grade || '',
+          favoriteSubject: row.favorite_subject || '',
+          isPublicPermissionGranted: true,
+          displayNameChoice: (row.display_name_choice as 'real_name' | 'pseudonym') || 'pseudonym',
+          pseudonym: row.pseudonym || generateCoolPseudonym()
+        }));
+      } catch (err: any) {
+        console.error('[DB Error] getPublicLeaderboardEntries query failed:', err.message);
+      }
+    } else {
+      try {
+        const profiles = readFile<UserProfile[]>(FILES.user_profiles);
+        publicProfiles = profiles.filter((p) => p.isPublicPermissionGranted === true);
+      } catch (err) {
+        publicProfiles = [];
+      }
+    }
+
+    const leaderboard: PublicLeaderboardEntry[] = [];
+
+    for (const p of publicProfiles) {
+      let explorationsCount = 0;
+      let assignmentsCount = 0;
+      let essaysCount = 0;
+      let totalScoreSum = 0;
+      let scoredCount = 0;
+
+      try {
+        const exps = await db.getExploreReports(p.userId);
+        explorationsCount = exps.length;
+      } catch (e) {}
+
+      try {
+        const asgs = await db.getAssignments(p.userId);
+        assignmentsCount = asgs.length;
+        asgs.forEach((a) => {
+          if (a.score) {
+            totalScoreSum += a.score;
+            scoredCount++;
+          }
+        });
+      } catch (e) {}
+
+      try {
+        const essays = await db.getDailyQuestions(p.userId);
+        const answered = essays.filter((q) => q.userAnswer);
+        essaysCount = answered.length;
+        answered.forEach((q) => {
+          if (q.score) {
+            totalScoreSum += q.score;
+            scoredCount++;
+          }
+        });
+      } catch (e) {}
+
+      const avgScore = scoredCount > 0 ? Math.round(totalScoreSum / scoredCount) : 75;
+      const activityPoints = (explorationsCount * 15) + (assignmentsCount * 20) + (essaysCount * 10);
+      const xpPoints = activityPoints + (scoredCount * 10);
+
+      // Score percentage formula
+      const scorePercentage = Math.min(100, Math.max(20, Math.round((avgScore * 0.7) + Math.min(30, activityPoints * 0.5))));
+
+      const isPseudonym = p.displayNameChoice === 'pseudonym';
+      const pseudonym = p.pseudonym || generateCoolPseudonym();
+      const displayName = isPseudonym 
+        ? pseudonym 
+        : (p.name?.trim() || 'Siswa PintarAI');
+
+      leaderboard.push({
+        userId: p.userId,
+        displayName,
+        isPseudonym,
+        pseudonym,
+        schoolName: p.schoolName,
+        grade: p.grade,
+        favoriteSubject: p.favoriteSubject,
+        scorePercentage,
+        xpPoints,
+        explorationsCount,
+        assignmentsCount,
+        essaysCount
+      });
+    }
+
+    // Sort by scorePercentage and xpPoints descending
+    leaderboard.sort((a, b) => b.scorePercentage - a.scorePercentage || b.xpPoints - a.xpPoints);
+
+    // Assign rank numbers
+    return leaderboard.map((entry, index) => ({
+      ...entry,
+      rank: index + 1
+    }));
   }
 };
 
